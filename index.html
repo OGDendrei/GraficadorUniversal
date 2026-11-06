@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Graficador universal</title>
+<meta name="description" content="30 formas de ver unos números: elige un gráfico, cambia los datos y mira cómo se redibuja.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="css/estilos.css">
+<!-- Librerías copiadas dentro del proyecto (nada se carga de internet). -->
+<script src="vendor/echarts-5.5.1.min.js"></script>
+<script src="vendor/d3-7.8.5.min.js"></script>
+<script type="module" src="js/app.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Graficador universal</h1>
+    <p class="sub">30 formas de ver unos números. Elige una, cambia los datos de la tabla y mira cómo se redibuja.</p>
+  </header>
+
+  <div class="grid">
+    <aside class="left">
+      <div class="tabs" id="tabs"></div>
+      <div class="tiles" id="tiles"></div>
+    </aside>
+
+    <main class="right">
+      <section class="plate" id="plate">
+        <div class="top" id="top"></div>
+        <p class="fact" id="fact"></p>
+        <div class="canvas" id="canvas" role="img" aria-label="Gráfico con los datos de la tabla"></div>
+        <div class="ed">
+          <div class="edh">
+            <h3>Tus datos</h3>
+            <div class="btns">
+              <button type="button" class="btn" id="addrow">+ Añadir fila</button>
+              <button type="button" class="btn" id="reset">Restaurar ejemplo</button>
+            </div>
+          </div>
+          <div class="dt" id="dt"></div>
+          <p class="hint" id="note"></p>
+          <p class="hint">Puedes pegar celdas copiadas de una hoja de cálculo. Los nombres de columna con subrayado se pueden cambiar.</p>
+        </div>
+      </section>
+      <p class="foot">Todo se calcula en tu navegador. Los datos de ejemplo son inventados y lo que escribas se guarda solo en este navegador.</p>
+    </main>
+  </div>
+</div>
+<noscript><p class="foot">Esta página necesita JavaScript y debe abrirse desde un servidor (no con doble clic). Mira el README.</p></noscript>
+</body>
+</html>
