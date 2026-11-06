@@ -17,11 +17,13 @@ export const nota = 'Cada fila es un flujo de un grupo a otro.';
 
 export function draw(el, rows, head, T, mini) {
   const { W, H } = sz(el);
-  const names = uniq(rows.reduce((a, r) => a.concat([r[0], r[1]]), []));
-  if (names.length < 2) { msg(el, 'Añade al menos dos grupos.'); return; }
+  /* Solo cuentan las filas con origen, destino y un flujo positivo. */
+  const validas = rows.map(r => [r[0], r[1], toNum(r[2])]).filter(r => r[0] && r[1] && r[2] > 0);
+  const names = uniq(validas.reduce((a, r) => a.concat([r[0], r[1]]), []));
+  if (names.length < 2) { msg(el, 'Faltan datos para dibujar este gráfico: cada fila necesita origen, destino y un flujo positivo.'); return; }
   /* Matriz de flujos: m[origen][destino]. */
   const m = names.map(() => names.map(() => 0));
-  rows.forEach(r => { const v = toNum(r[2]); if (r[0] && r[1] && v > 0) m[names.indexOf(r[0])][names.indexOf(r[1])] += v; });
+  validas.forEach(r => { m[names.indexOf(r[0])][names.indexOf(r[1])] += r[2]; });
   const svg = mkSvg(el, W, H);
   const R = Math.min(W, H) / 2 - (mini ? 5 : 56), inner = R - (mini ? 7 : 14);
   const chords = d3.chordDirected().padAngle(.04).sortSubgroups(d3.descending)(m);

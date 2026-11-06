@@ -26,6 +26,8 @@ export const nota = 'Fecha como AAAA-MM-DD o DD/MM/AAAA.';
 export function opt(rows, head, T) {
   const d = rows.map(r => [normDate(r[0]), toNum(r[1])]).filter(x => x[0] && !isNaN(x[1]));
   if (!d.length) return null;
+  if (d.some(x => x[1] < 0)) return { aviso: 'El calendario de calor no admite números negativos. Usa 0 o más en «' + head[1] + '».' };
+  if (new Set(d.map(x => x[0])).size < 2) return { aviso: 'Hacen falta al menos dos días distintos para dibujar el calendario.' };
   d.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
   const mx = maxOf(d.map(x => x[1])) || 1;
   return {

@@ -35,7 +35,9 @@ function arrancar() {
   let curId = 'line', group = 'populares', galleryGroup = null;
   const save = id => { try { localStorage.setItem(CLAVE(id), JSON.stringify(S[id])); } catch (e) { /* sin almacenamiento: no se guarda */ } };
 
-  /* ---------- pintar un gráfico en un elemento ---------- */
+  /* ---------- pintar un gráfico en un elemento ----------
+     opt() puede devolver: null (faltan datos), { aviso: 'texto' } (datos no válidos para este gráfico)
+     o { pending: true } (el mapa del mundo aún no ha llegado). */
   function paint(el, c, s, T, mini) {
     const old = window.echarts && echarts.getInstanceByDom(el); if (old) old.dispose();
     el.innerHTML = ''; el.removeAttribute('title');
@@ -44,6 +46,7 @@ function arrancar() {
       if (c.opt) {
         const o = c.opt(rows, s.head, T, mini);
         if (!o) { msg(el, 'Faltan datos para dibujar este gráfico.'); return; }
+        if (o.aviso) { msg(el, o.aviso); return; }
         if (o.pending) { msg(el, mapaFallo ? 'No se ha podido cargar el mapa del mundo.' + (mini ? '' : ' [' + mapaFallo + ']') : 'Cargando el mapa…'); return; }
         const io = { renderer: 'svg' };
         if (!el.clientWidth) io.width = el.id === 'canvas' ? 600 : 160;

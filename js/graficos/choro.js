@@ -20,9 +20,13 @@ export function opt(rows, head, T) {
   const d = rows.map(r => ({ name: alias(r[0]), value: toNum(r[1]) })).filter(x => x.name && !isNaN(x.value));
   if (!d.length) return null;
   const vs = d.map(x => x.value);
+  /* Con un solo valor (o todos iguales) la escala de colores no tiene anchura y ECharts pinta
+     también los países sin datos; se abre la escala hacia abajo para evitarlo. */
+  let min = minOf(vs); const max = maxOf(vs);
+  if (min === max) min = max - Math.max(1, Math.abs(max));
   return {
     tooltip: { trigger: 'item', formatter: p => esc(p.name) + ': ' + (p.value != null && !isNaN(p.value) ? nf.format(p.value) : 'sin datos') },
-    visualMap: { min: minOf(vs), max: maxOf(vs), left: 8, bottom: 8, calculable: false, text: ['Más', 'Menos'], itemWidth: 12, itemHeight: 90, inRange: { color: T.q }, textStyle: { color: T.ink2 } },
+    visualMap: { min, max, left: 8, bottom: 8, calculable: false, text: ['Más', 'Menos'], itemWidth: 12, itemHeight: 90, inRange: { color: T.q }, textStyle: { color: T.ink2 } },
     series: [{ type: 'map', map: 'world', roam: false, data: d, itemStyle: { areaColor: T.grid, borderColor: T.surface, borderWidth: .5 }, emphasis: { label: { show: false }, itemStyle: { areaColor: T.series[1] } } }]
   };
 }

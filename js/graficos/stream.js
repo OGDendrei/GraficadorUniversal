@@ -19,6 +19,8 @@ export const nota = 'Cada columna de valores es una corriente.';
 
 export function opt(rows, head, T) {
   const ss = sers(rows, head, 1); if (!ss.length || rows.length < 2) return null;
+  const neg = rows.findIndex(r => ss.some(c => toNum(r[c]) < 0));
+  if (neg >= 0) return { aviso: 'El streamgraph no admite números negativos (fila ' + (neg + 1) + '). Cada corriente es una cantidad: usa 0 o más.' };
   const labels = col(rows, 0), d = [];
   rows.forEach((r, i) => { ss.forEach(c => { const v = toNum(r[c]); d.push([i, isNaN(v) ? 0 : v, head[c]]); }); });
   return {

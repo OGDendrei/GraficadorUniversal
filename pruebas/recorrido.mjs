@@ -125,7 +125,10 @@ async function estado(page) {
     const dibujado = !m && !!cv.querySelector('svg, .st, .bul, .sp');
     const thumbs = [...document.querySelectorAll('#tiles .thumb')].map(t => ({ id: t.id.slice(3), msg: t.querySelector('.msg')?.textContent || '', vacio: t.childElementCount === 0, titulo: t.title || '' }));
     const desborde = document.documentElement.scrollWidth - window.innerWidth;
-    return { dibujado, mensaje: m ? m.textContent : '', thumbs, desborde };
+    /* Para el mapa: cuántos países tienen el color de «sin datos» (el de la rejilla). */
+    const gris = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim().toLowerCase();
+    const paisesSinDatos = [...cv.querySelectorAll('path')].filter(x => (x.getAttribute('fill') || '').toLowerCase() === gris).length;
+    return { dibujado, mensaje: m ? m.textContent : '', thumbs, desborde, paisesSinDatos };
   });
 }
 
@@ -143,6 +146,17 @@ function datosRaros(c, tipo) {
   }));
   return filas;
 }
+
+/* Casos con datos raros que deben dar un resultado concreto (si no, es un fallo). */
+const ESPERADO = {
+  'chord/texto': e => /Faltan datos/.test(e.mensaje) || 'debería decir «Faltan datos»',
+  'chord/vacias': e => /Faltan datos/.test(e.mensaje) || 'debería decir «Faltan datos»',
+  'chord/negativos': e => /Faltan datos/.test(e.mensaje) || 'debería decir «Faltan datos»',
+  'stream/negativos': e => /negativos/.test(e.mensaje) || 'debería avisar de que no admite negativos',
+  'calendar/negativos': e => /negativos/.test(e.mensaje) || 'debería avisar de que no admite negativos',
+  'calendar/una-fila': e => /dos días/.test(e.mensaje) || 'debería avisar de que hacen falta dos días',
+  'choro/una-fila': e => (e.dibujado && e.paisesSinDatos > 150) || 'los países sin datos deberían quedar en gris (hay ' + e.paisesSinDatos + ')'
+};
 
 const resumen = {};   /* resumen[tipoDatos][id] = 'ok' | 'aviso: …' | 'ERROR: …' */
 const anota = (tipo, id, cfg, txt) => { resumen[tipo] ??= {}; resumen[tipo][id] ??= {}; resumen[tipo][id][cfg] = txt; };
@@ -175,6 +189,8 @@ for (const cfg of CONFIGS) {
       if (e.dibujado) txt = 'ok';
       else if (/No se ha podido/.test(e.mensaje)) { txt = 'ERROR: ' + e.mensaje; fallo(donde, e.mensaje); }
       else txt = 'aviso: ' + e.mensaje;
+      const esperado = ESPERADO[c.id + '/' + tipo];
+      if (esperado) { const r = esperado(e); if (r !== true) fallo(donde, r + ' y da: ' + txt); }
       if (tipo === 'ejemplo' && txt !== 'ok') fallo(donde, 'con los datos de ejemplo no se dibuja: ' + e.mensaje);
       anota(tipo, c.id, cfg.nombre, txt);
       if (e.desborde > 0) fallo(donde, 'la página se sale ' + e.desborde + ' px a lo ancho');
