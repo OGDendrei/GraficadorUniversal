@@ -1,0 +1,829 @@
+<title>Graficador universal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a la izquierda la galería (3 grupos, miniaturas en vivo); a la derecha la lámina del gráfico elegido con su curiosidad y su tabla de datos. En móvil se apilan. */
+:root{
+  --plane:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,.10);
+  --accent:#2a78d6; --accent-wash:#e6effb; --accent-text:#184f95;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+  --q1:#cde2fb; --q2:#86b6ef; --q3:#3987e5; --q4:#1c5cab; --q5:#0d366b;
+  --b1:#cfcec6; --b2:#dddcd5; --b3:#ebeae4; --fill:#dbe8fa;
+  --font:system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --plane:#0d0d0d; --surface:#1a1a19; --ink:#f0efec; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
+    --accent:#3987e5; --accent-wash:#1d2a3d; --accent-text:#9ec5f4;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+    --q1:#1d2a3d; --q2:#184f95; --q3:#256abf; --q4:#5598e7; --q5:#9ec5f4;
+    --b1:#3d3d3a; --b2:#2f2f2d; --b3:#252523; --fill:#1d2a3d;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --plane:#0d0d0d; --surface:#1a1a19; --ink:#f0efec; --ink2:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
+  --accent:#3987e5; --accent-wash:#1d2a3d; --accent-text:#9ec5f4;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  --q1:#1d2a3d; --q2:#184f95; --q3:#256abf; --q4:#5598e7; --q5:#9ec5f4;
+  --b1:#3d3d3a; --b2:#2f2f2d; --b3:#252523; --fill:#1d2a3d;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--plane); color:var(--ink); font-family:var(--font); font-size:15px; line-height:1.45;
+  padding-block:24px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.app{max-width:1240px; margin:0 auto}
+h1{font-size:28px; line-height:1.1; font-weight:700; letter-spacing:-.015em; margin:0 0 6px; text-wrap:balance}
+.sub{color:var(--ink2); margin:0 0 20px; max-width:66ch}
+.grid{display:grid; grid-template-columns:minmax(0,390px) minmax(0,1fr); gap:24px; align-items:start}
+.left,.right{min-width:0}
+@media (max-width:900px){ .grid{grid-template-columns:minmax(0,1fr)} }
+
+.tabs{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-bottom:12px}
+.tab{border:1px solid var(--ring); background:var(--surface); color:var(--ink); border-radius:8px; padding:8px 8px 7px; font:inherit; text-align:left; cursor:pointer; min-width:0}
+.tab b{display:block; font-size:14px}
+.tab span{display:block; font-size:11.5px; color:var(--ink2); line-height:1.25}
+.tab[aria-pressed="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--accent-wash)}
+.tiles{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
+.tile{border:1px solid var(--ring); background:var(--surface); color:var(--ink); border-radius:10px; padding:8px; font:inherit; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:6px; min-width:0}
+.tile:hover{background:var(--accent-wash)}
+.tile[aria-pressed="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--accent-wash)}
+.thumb{height:92px; width:100%; pointer-events:none; overflow:hidden}
+.tn{font-size:13px; font-weight:600; line-height:1.2}
+
+.plate{background:var(--surface); border:1px solid var(--ring); border-radius:12px; padding:18px; scroll-margin-top:12px}
+.top{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap}
+.top > div{min-width:0}
+.eyebrow{font-size:12px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--accent-text); margin:0 0 4px}
+h2{font-size:24px; line-height:1.15; font-weight:700; letter-spacing:-.01em; margin:0 0 4px; text-wrap:balance}
+.use{margin:0; color:var(--ink2)}
+.yr{text-align:right; flex:none}
+.yr .y{display:block; font-size:44px; line-height:1; font-weight:700; letter-spacing:-.03em}
+.yr .w{display:block; font-size:12.5px; color:var(--ink2); margin-top:4px}
+.fact{margin:14px 0 14px; padding:10px 12px; border-radius:8px; background:var(--plane); color:var(--ink2); max-width:80ch}
+.fact b{color:var(--ink)}
+.canvas{height:clamp(320px,58vh,480px); width:100%; overflow:auto}
+.msg{height:100%; min-height:60px; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--ink2); padding:12px; font-size:14px}
+.thumb .msg{font-size:11px; padding:4px}
+
+.ed{margin-top:18px; border-top:1px solid var(--grid); padding-top:14px}
+.edh{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px}
+.edh h3{margin:0; font-size:12px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--ink2)}
+.btns{display:flex; gap:8px; flex-wrap:wrap}
+.btn{border:1px solid var(--ring); background:var(--surface); color:var(--ink); border-radius:8px; padding:6px 12px; font:inherit; font-size:13px; cursor:pointer}
+.btn:hover{background:var(--accent-wash)}
+.hint{font-size:12.5px; color:var(--ink2); margin:8px 0 0}
+.dt{max-height:320px; overflow:auto; border:1px solid var(--grid); border-radius:8px}
+table{border-collapse:collapse; width:100%; font-size:14px}
+th{position:sticky; top:0; background:var(--surface); z-index:1; text-align:left; border-bottom:1px solid var(--grid); font-weight:600; color:var(--ink2); padding:0}
+th.num{text-align:right}
+td{padding:0; border-bottom:1px solid var(--grid)}
+.dt input{width:100%; min-width:84px; background:transparent; border:0; padding:7px 10px; color:var(--ink); font:inherit; font-size:14px}
+.dt input.num{text-align:right; font-variant-numeric:tabular-nums}
+.dt input.hin{font-weight:600; color:var(--ink2); border-bottom:1px dashed var(--axis)}
+.dt input:focus{outline:2px solid var(--accent); outline-offset:-2px; background:var(--accent-wash)}
+th:not(.xc){padding:0}
+.xc{width:34px; min-width:34px; text-align:center}
+.x{border:0; background:none; color:var(--muted); cursor:pointer; font-size:13px; padding:6px}
+.x:hover{color:var(--ink)}
+.th-lbl{display:block; padding:7px 10px}
+.foot{font-size:12.5px; color:var(--ink2); margin:14px 0 0}
+
+/* gráficos en HTML */
+.bul{display:flex; flex-direction:column; gap:16px; padding:6px 2px}
+.bl{display:grid; grid-template-columns:minmax(80px,1fr) minmax(120px,3fr) auto; gap:12px; align-items:center}
+.bn{font-size:13.5px; color:var(--ink)}
+.bt{position:relative; height:26px; background:var(--b3)}
+.bt i{position:absolute; top:0; bottom:0; left:0; display:block}
+.bt .k1{width:60%; background:var(--b1)}
+.bt .k2{width:85%; background:var(--b2); z-index:0}
+.bt .k3{width:100%; background:var(--b3)}
+.bt .k2{z-index:1} .bt .k1{z-index:2}
+.bt .bb{top:9px; bottom:9px; background:var(--s1); z-index:3}
+.bt .bm{width:3px; top:4px; bottom:4px; background:var(--ink); z-index:4; margin-left:-1px}
+.bv{font-size:13px; color:var(--ink2); font-variant-numeric:tabular-nums; white-space:nowrap}
+.sp .rw{display:grid; grid-template-columns:minmax(90px,1.2fr) minmax(90px,2fr) auto auto; gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid var(--grid)}
+.sp .sn{font-size:13.5px}
+.sp .sg{position:relative; height:34px}
+.sp svg{width:100%; height:100%; display:block; overflow:visible}
+.sp .dot{position:absolute; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%; background:var(--s1); border:2px solid var(--surface); box-sizing:content-box}
+.sp .sv{font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; text-align:right}
+.sp .sc{font-size:12.5px; color:var(--ink2); font-variant-numeric:tabular-nums; min-width:64px; text-align:right}
+.st{font-family:var(--mono); font-size:14px; padding:4px 2px}
+.st .ln{display:flex; gap:10px; line-height:1.7}
+.st .sk{width:34px; text-align:right; color:var(--ink2); flex:none}
+.st .bar{border-left:2px solid var(--ink); padding-left:10px; letter-spacing:.14em; color:var(--s1); font-weight:700}
+.st .sc2{color:var(--muted); font-size:12px; margin-left:8px}
+.st .key{margin-top:10px; font-size:12.5px; color:var(--ink2); font-family:var(--font)}
+.thumb .bul{gap:6px} .thumb .bv,.thumb .bn{display:none} .thumb .bl{grid-template-columns:1fr} .thumb .bt{height:14px}
+.thumb .bt .bb{top:4px; bottom:4px}
+.thumb .sp .rw{grid-template-columns:1fr; padding:4px 0} .thumb .sp .sn,.thumb .sp .sv,.thumb .sp .sc{display:none} .thumb .sp .sg{height:20px}
+.thumb .st{font-size:9px} .thumb .st .ln{line-height:1.25} .thumb .st .key,.thumb .st .sc2{display:none}
+@media (max-width:900px){ .dt input{font-size:16px} .yr .y{font-size:34px} h2{font-size:21px} }
+</style>
+
+<div class="app">
+  <header>
+    <h1>Graficador universal</h1>
+    <p class="sub">30 formas de ver unos números. Elige una, cambia los datos de la tabla y mira cómo se redibuja.</p>
+  </header>
+
+  <div class="grid">
+    <aside class="left">
+      <div class="tabs" id="tabs"></div>
+      <div class="tiles" id="tiles"></div>
+    </aside>
+
+    <main class="right">
+      <section class="plate" id="plate">
+        <div class="top" id="top"></div>
+        <p class="fact" id="fact"></p>
+        <div class="canvas" id="canvas" role="img" aria-label="Gráfico con los datos de la tabla"></div>
+        <div class="ed">
+          <div class="edh">
+            <h3>Tus datos</h3>
+            <div class="btns">
+              <button type="button" class="btn" id="addrow">+ Añadir fila</button>
+              <button type="button" class="btn" id="reset">Restaurar ejemplo</button>
+            </div>
+          </div>
+          <div class="dt" id="dt"></div>
+          <p class="hint" id="note"></p>
+          <p class="hint">Puedes pegar celdas copiadas de una hoja de cálculo. Los nombres de columna con subrayado se pueden cambiar.</p>
+        </div>
+      </section>
+      <p class="foot">Todo se calcula en tu navegador. Los datos de ejemplo son inventados y lo que escribas se guarda solo en este navegador.</p>
+    </main>
+  </div>
+</div>
+
+<script>
+/* Carga las librerías probando varias fuentes permitidas; la app arranca cuando están las dos. */
+function __load(urls,test,done){
+  var i=0;
+  (function next(){
+    if(test()){done(true);return}
+    if(i>=urls.length){done(false);return}
+    var s=document.createElement('script');s.src=urls[i++];s.onload=next;s.onerror=next;document.head.appendChild(s);
+  })();
+}
+__load(['https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js','https://unpkg.com/echarts@5.5.1/dist/echarts.min.js','https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.1/echarts.min.js'],function(){return !!window.echarts},function(ok1){
+  __load(['https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js','https://unpkg.com/d3@7.8.5/dist/d3.min.js','https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js'],function(){return !!window.d3},function(ok2){
+    if(ok1&&ok2){__boot()}
+    else{var c=document.getElementById('canvas');if(c)c.innerHTML='<div class="msg">No se han podido cargar las librerías de gráficos ('+(ok1?'':'ECharts ')+(ok2?'':'d3')+'). Comprueba la conexión y vuelve a abrir la página.</div>'}
+  });
+});
+function __boot(){
+  var FONT='system-ui,-apple-system,"Segoe UI",sans-serif';
+  var nf=new Intl.NumberFormat('es-ES',{maximumFractionDigits:2});
+  var $=function(id){return document.getElementById(id)};
+  var esc=function(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var mapFailed=false;
+
+  /* ---------- utilidades ---------- */
+  function toNum(s){
+    if(s==null||s==='')return NaN;
+    var t=String(s).replace(/\s|€|%|°[CcFf]?/g,'');
+    if(/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) t=t.replace(/\./g,'').replace(',','.');
+    else if(/^-?\d+,\d+$/.test(t)) t=t.replace(',','.');
+    return /^-?\d*\.?\d+(e-?\d+)?$/i.test(t)?parseFloat(t):NaN;
+  }
+  function normDate(s){
+    s=String(s).trim();
+    var m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if(m)return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+    m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);
+    if(m)return m[3]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2);
+    return null;
+  }
+  function mulberry(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;var t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+  function gauss(r){var u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+  function genLong(groups,n,seed){var r=mulberry(seed),rows=[];groups.forEach(function(g){for(var i=0;i<n;i++)rows.push([g[0],String(Math.round((g[1]+gauss(r)*g[2])*10)/10)])});return rows}
+  function genDays(){var r=mulberry(7),rows=[],d0=Date.UTC(2026,7,3);for(var i=0;i<91;i++){var d=new Date(d0+i*864e5),w=d.getUTCDay();var v=Math.max(0,Math.round((w===0||w===6?1.5:4)+gauss(r)*1.6));rows.push([d.toISOString().slice(0,10),String(v)])}return rows}
+  var col=function(rows,i){return rows.map(function(r){return r[i]==null?'':String(r[i])})};
+  var ncol=function(rows,i){return rows.map(function(r){var v=toNum(r[i]);return isNaN(v)?null:v})};
+  var sers=function(rows,head,from){var o=[];for(var c=from;c<head.length;c++){if(rows.some(function(r){return !isNaN(toNum(r[c]))}))o.push(c)}return o};
+  var uniq=function(a){return Array.from(new Set(a.filter(function(x){return x!==''&&x!=null})))};
+  var onFill=function(k){return k%8===3?'#0b0b0b':'#ffffff'};
+  var maxOf=function(a){var m=-Infinity;a.forEach(function(v){if(v>m)m=v});return m};
+  var minOf=function(a){var m=Infinity;a.forEach(function(v){if(v<m)m=v});return m};
+  function msg(el,t){el.innerHTML='<div class="msg">'+esc(t)+'</div>'}
+  function sz(el){return {W:el.clientWidth||600,H:el.clientHeight||340}}
+  function mkSvg(el,W,H){el.innerHTML='';return d3.select(el).append('svg').attr('width',W).attr('height',H).attr('viewBox','0 0 '+W+' '+H).style('display','block').style('font-family',FONT)}
+
+  function theme(){
+    var cs=getComputedStyle(document.documentElement);var g=function(n,d){return cs.getPropertyValue(n).trim()||d};
+    var DS=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#6250d6','#e34948'],DQ=['#cde2fb','#86b6ef','#3987e5','#1c5cab','#0d366b'];
+    var o={ink:g('--ink','#0b0b0b'),ink2:g('--ink2','#52514e'),muted:g('--muted','#898781'),grid:g('--grid','#e1e0d9'),axis:g('--axis','#c3c2b7'),surface:g('--surface','#fcfcfb'),fill:g('--fill','#dbe8fa'),series:[],q:[]};
+    for(var i=1;i<=8;i++)o.series.push(g('--s'+i,DS[i-1]));
+    for(var j=1;j<=5;j++)o.q.push(g('--q'+j,DQ[j-1]));
+    return o;
+  }
+
+  /* ---------- piezas comunes de ECharts ---------- */
+  var gap=function(T){return {borderColor:T.surface,borderWidth:2}};
+  var legendB=function(T){return {top:0,left:0,icon:'roundRect',itemWidth:12,itemHeight:12,itemGap:16,textStyle:{color:T.ink2,fontSize:13}}};
+  var gridB=function(m){return {left:8,right:18,top:m?42:18,bottom:8,containLabel:true}};
+  var cat=function(T,data,ex){return Object.assign({type:'category',data:data,axisLine:{lineStyle:{color:T.axis}},axisTick:{show:false},axisLabel:{color:T.muted,hideOverlap:true}},ex||{})};
+  var val=function(T,ex){return Object.assign({type:'value',axisLine:{show:false},axisTick:{show:false},splitLine:{lineStyle:{color:T.grid}},axisLabel:{color:T.muted,formatter:function(v){return nf.format(v)}}},ex||{})};
+  function finalize(o,T){
+    return Object.assign({animation:!reduce,animationDuration:400,color:T.series,textStyle:{fontFamily:FONT,color:T.ink2}},o,{
+      tooltip:Object.assign({backgroundColor:T.surface,borderColor:T.grid,borderWidth:1,padding:[8,10],textStyle:{color:T.ink,fontFamily:FONT,fontSize:13},
+        extraCssText:'box-shadow:0 2px 8px rgba(0,0,0,.12);border-radius:6px;',
+        valueFormatter:function(v){return typeof v==='number'?nf.format(v):(v==null?'–':v)}},o.tooltip||{})});
+  }
+  function miniify(o){
+    var q=Object.assign({},o,{animation:false,tooltip:{show:false},legend:{show:false},title:{show:false}});
+    if(q.visualMap)q.visualMap=[].concat(q.visualMap).map(function(v){return Object.assign({},v,{show:false})});
+    if(q.grid)q.grid={left:3,right:3,top:3,bottom:3,containLabel:false};
+    ['xAxis','yAxis'].forEach(function(k){if(q[k])q[k]=[].concat(q[k]).map(function(a){return Object.assign({},a,{name:'',axisLabel:{show:false},axisTick:{show:false},splitLine:{show:false},axisLine:{show:false}})})});
+    if(q.radar)q.radar=Object.assign({},q.radar,{axisName:{show:false},radius:'78%',center:['50%','50%']});
+    if(q.singleAxis)q.singleAxis=Object.assign({},q.singleAxis,{axisLabel:{show:false},axisLine:{show:false},top:4,bottom:4,left:4,right:4});
+    if(q.parallel){q.parallel=Object.assign({},q.parallel,{left:6,right:6,top:6,bottom:6});q.parallelAxis=q.parallelAxis.map(function(a){return Object.assign({},a,{name:'',axisLabel:{show:false}})})}
+    if(q.calendar)q.calendar=Object.assign({},q.calendar,{left:2,right:2,top:2,bottom:2,dayLabel:{show:false},monthLabel:{show:false},yearLabel:{show:false}});
+    q.series=(q.series||[]).map(function(s){
+      var t=Object.assign({},s,{label:{show:false},markLine:undefined});
+      if(s.type==='pie'){t.radius=(s.radius[0]==='0%')?['0%','88%']:['45%','88%'];t.center=['50%','50%'];t.labelLine={show:false}}
+      if(s.type==='sankey'){t.left=2;t.right=2;t.top=2;t.bottom=2}
+      if(s.type==='treemap'){t.left=0;t.right=0;t.top=0;t.bottom=0;t.upperLabel={show:false};t.levels=(s.levels||[]).map(function(l){return Object.assign({},l,{upperLabel:{show:false},label:{show:false}})})}
+      if(s.type==='sunburst'){t.radius=[0,'92%'];t.levels=(s.levels||[]).map(function(l){return Object.assign({},l,{label:{show:false}})})}
+      return t;
+    });
+    return q;
+  }
+
+  /* ---------- fabricas de gráficos ---------- */
+  function axisOpt(kind){return function(rows,head,T){
+    var ss=sers(rows,head,1);if(!ss.length)return null;
+    var x=col(rows,0),multi=ss.length>1,g=gap(T),h=kind==='barh';
+    var o={grid:gridB(multi),legend:multi?legendB(T):{show:false}};
+    if(kind==='bar'||kind==='barh'||kind==='stack'){
+      o.tooltip={trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:T.grid,opacity:.45}}};
+      o.xAxis=h?val(T):cat(T,x);o.yAxis=h?cat(T,x,{inverse:true}):val(T);
+      o.series=ss.map(function(c,k){
+        var last=k===ss.length-1;
+        var rad=kind==='stack'?(last?(h?[0,4,4,0]:[4,4,0,0]):0):(h?[0,4,4,0]:[4,4,0,0]);
+        return {name:head[c],type:'bar',data:ncol(rows,c),barMaxWidth:28,stack:kind==='stack'?'t':undefined,itemStyle:Object.assign({borderRadius:rad},g),emphasis:{focus:'series'}};
+      });
+    }else{
+      o.tooltip={trigger:'axis',axisPointer:{type:'line',lineStyle:{color:T.axis}}};
+      o.xAxis=cat(T,x,{boundaryGap:false});o.yAxis=val(T);
+      o.series=ss.map(function(c){return {name:head[c],type:'line',data:ncol(rows,c),showSymbol:x.length<=40,symbol:'circle',symbolSize:8,lineStyle:{width:2},itemStyle:g,areaStyle:kind==='area'?{opacity:.16}:undefined,emphasis:{focus:'series'}}});
+    }
+    return o;
+  }}
+  function pieOpt(donut){return function(rows,head,T){
+    var items=rows.map(function(r){return {name:r[0]||'(vacío)',value:toNum(r[1])}}).filter(function(d){return d.value>0});
+    if(!items.length)return null;
+    if(items.length>8){items.sort(function(a,b){return b.value-a.value});var rest=items.slice(7).reduce(function(s,d){return s+d.value},0);items=items.slice(0,7).concat([{name:'Otros',value:rest,other:true}])}
+    var total=items.reduce(function(s,d){return s+d.value},0);
+    items.forEach(function(d,k){d.itemStyle={color:d.other?T.muted:T.series[k],borderColor:T.surface,borderWidth:2,borderRadius:donut?4:0}});
+    var o={legend:{bottom:0,left:'center',type:'scroll',icon:'roundRect',itemWidth:12,itemHeight:12,itemGap:14,textStyle:{color:T.ink2,fontSize:13}},
+      tooltip:{trigger:'item',formatter:function(p){return esc(p.name)+': '+nf.format(p.value)+' ('+nf.format(p.percent)+' %)'}},
+      series:[{type:'pie',radius:donut?['48%','70%']:['0%','70%'],center:['50%','44%'],data:items,label:{color:T.ink2,formatter:'{d}%'},labelLine:{lineStyle:{color:T.axis}},emphasis:{scaleSize:4}}]};
+    if(donut)o.title={text:nf.format(total),subtext:head[1]||'',left:'center',top:'39%',itemGap:2,textStyle:{color:T.ink,fontSize:24,fontWeight:600,fontFamily:FONT},subtextStyle:{color:T.ink2,fontSize:12,fontFamily:FONT}};
+    return o;
+  }}
+  function tree(rows){var m=new Map();rows.forEach(function(r){var v=toNum(r[2]);if(!r[0]||!r[1]||!(v>0))return;if(!m.has(r[0]))m.set(r[0],[]);m.get(r[0]).push({name:r[1],value:v})});return Array.from(m.entries()).map(function(e){return {name:e[0],children:e[1]}})}
+  function kde(v,h,a,b,n){var out=[];for(var i=0;i<=n;i++){var t=a+(b-a)*i/n,s=0;for(var j=0;j<v.length;j++)s+=Math.exp(-.5*Math.pow((t-v[j])/h,2));out.push([t,s/(v.length*h*Math.sqrt(2*Math.PI))])}return out}
+  function bw(v){var sd=d3.deviation(v)||1;return Math.max(1.06*sd*Math.pow(v.length,-.2),1e-6)}
+  function groupsOf(rows){return uniq(rows.map(function(r){return r[0]})).map(function(n){return {n:n,v:rows.filter(function(r){return r[0]===n}).map(function(r){return toNum(r[1])}).filter(function(x){return !isNaN(x)}).sort(function(a,b){return a-b})}}).filter(function(g){return g.v.length>=2})}
+  function parseSeries(s){s=String(s||'').trim();var parts=/[\s;]/.test(s)?s.split(/[\s;]+/):s.split(',');return parts.map(toNum).filter(function(v){return !isNaN(v)})}
+  var ALIAS={'españa':'Spain','francia':'France','alemania':'Germany','italia':'Italy','portugal':'Portugal','reino unido':'United Kingdom','estados unidos':'United States','eeuu':'United States','ee.uu.':'United States','méxico':'Mexico','brasil':'Brazil','argentina':'Argentina','chile':'Chile','colombia':'Colombia','perú':'Peru','venezuela':'Venezuela','canadá':'Canada','rusia':'Russia','china':'China','japón':'Japan','india':'India','australia':'Australia','marruecos':'Morocco','egipto':'Egypt','sudáfrica':'South Africa','turquía':'Turkey','grecia':'Greece','suecia':'Sweden','noruega':'Norway','finlandia':'Finland','polonia':'Poland','países bajos':'Netherlands','holanda':'Netherlands','bélgica':'Belgium','suiza':'Switzerland','austria':'Austria','irlanda':'Ireland','argelia':'Algeria','arabia saudí':'Saudi Arabia','corea del sur':'South Korea','ucrania':'Ukraine','dinamarca':'Denmark'};
+  var alias=function(n){var k=String(n).trim().toLowerCase();return ALIAS[k]||String(n).trim()};
+
+  /* ---------- datos de ejemplo ---------- */
+  var HM=[];['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].forEach(function(d,i){['Mañana','Tarde','Noche'].forEach(function(f,j){var base=[2.1,2.6,4.4][j]*(i>=5?1.25:1);HM.push([d,f,String(Math.round((base+((i*7+j*3)%5)*.18)*10)/10)])})});
+  var STR=[];(function(){var mm=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];for(var i=0;i<12;i++)STR.push([mm[i],String(Math.round(40+22*Math.sin(i/1.8))),String(Math.round(34+14*Math.cos(i/2.4))),String(Math.round(18+16*Math.sin(i/1.3+2)))])})();
+
+  /* ---------- catálogo ---------- */
+  var CH=[
+  /* ===== POPULARES ===== */
+  {id:'bar',g:'pop',name:'Barras verticales',use:'Comparar cantidades entre categorías',year:'1786',who:'William Playfair',
+   fact:'Playfair las inventó para enseñar el comercio de Escocia con otros países. Hasta entonces esos datos se daban en tablas.',
+   cols:[{h:'Categoría',t:'t'},{h:'Este mes',t:'n',e:1},{h:'Mes anterior',t:'n',e:1},{h:'Serie 3',t:'n',e:1}],
+   rows:[['Comida',320,295],['Transporte',140,150],['Ocio',120,160],['Suministros',110,95],['Salud',45,30]],opt:axisOpt('bar')},
+  {id:'barh',g:'pop',name:'Barras horizontales',use:'Rankings y nombres largos',year:'1786',who:'William Playfair',
+   fact:'Las primeras barras de Playfair eran horizontales. Las verticales llegaron después.',
+   cols:[{h:'Tienda',t:'t'},{h:'Gasto (€)',t:'n',e:1},{h:'Serie 2',t:'n',e:1}],
+   rows:[['Supermercado',240],['Gasolinera',110],['Restaurantes',80],['Farmacia',45],['Ferretería',38],['Librería',25]],opt:axisOpt('barh')},
+  {id:'line',g:'pop',name:'Líneas',use:'Cómo evoluciona algo en el tiempo',year:'~950',who:'Autor anónimo',
+   fact:'La gráfica de líneas más antigua que se conoce es de un manuscrito medieval hacia el año 950. Muestra la inclinación de las órbitas de los planetas a lo largo del tiempo.',
+   cols:[{h:'Hora',t:'t'},{h:'Temperatura (°C)',t:'n',e:1},{h:'Sensación (°C)',t:'n',e:1},{h:'Serie 3',t:'n',e:1}],
+   rows:[['00:00',8,6.5],['02:00',7,5.5],['04:00',6,4.5],['06:00',5.5,4],['08:00',8,7],['10:00',12.5,12],['12:00',15.5,15],['14:00',17,16.5],['16:00',15.5,15],['18:00',11.5,10],['20:00',9.8,8.5],['22:00',8.7,7.2]],opt:axisOpt('line')},
+  {id:'pie',g:'pop',name:'Sectores (quesitos)',use:'Qué parte del total es cada cosa',year:'1801',who:'William Playfair',
+   fact:'Aparece por primera vez en el Statistical Breviary de Playfair. Muchos expertos en visualización lo critican porque el ojo compara mal los ángulos.',
+   cols:[{h:'Categoría',t:'t'},{h:'Importe (€)',t:'n',e:1}],
+   rows:[['Vivienda',650],['Comida',320],['Transporte',140],['Ocio',120],['Suministros',110],['Otros',60]],opt:pieOpt(false),note:'Con más de 8 categorías, las más pequeñas se agrupan en «Otros».'},
+  {id:'area',g:'pop',name:'Área',use:'Evolución resaltando el volumen',year:'1786',who:'William Playfair',
+   fact:'Nace al rellenar de color el hueco bajo una línea. Playfair lo usó para enseñar cuánto se importaba y exportaba a lo largo del tiempo.',
+   cols:[{h:'Mes',t:'t'},{h:'Consumo (kWh)',t:'n',e:1},{h:'Producción solar (kWh)',t:'n',e:1},{h:'Serie 3',t:'n',e:1}],
+   rows:[['Ene',310,95],['Feb',295,130],['Mar',280,200],['Abr',260,260],['May',250,320],['Jun',270,360],['Jul',320,380],['Ago',330,350],['Sep',270,260],['Oct',280,170],['Nov',300,100],['Dic',340,80]],opt:axisOpt('area')},
+  {id:'stack',g:'pop',name:'Barras apiladas',use:'El total y cómo se reparte, a la vez',year:'',who:'',
+   fact:'Enseña el total y su reparto en un solo gráfico, pero solo la serie de abajo se compara bien: las demás flotan.',
+   cols:[{h:'Mes',t:'t'},{h:'Vivienda',t:'n',e:1},{h:'Comida',t:'n',e:1},{h:'Ocio',t:'n',e:1}],
+   rows:[['Ene',650,310,90],['Feb',650,295,70],['Mar',655,320,110],['Abr',650,305,95],['May',660,330,130],['Jun',650,340,160]],opt:axisOpt('stack')},
+  {id:'scatter',g:'pop',name:'Dispersión',use:'Si dos cosas están relacionadas',year:'1833',who:'John Herschel',
+   fact:'Herschel dibujó así la órbita de estrellas dobles. Casi 200 años después sigue siendo la mejor forma de ver si dos cosas van juntas.',
+   cols:[{h:'Altura (cm)',t:'n',e:1},{h:'Peso (kg)',t:'n',e:1}],
+   rows:[[155,52],[158,55],[160,58],[163,60],[165,62],[167,66],[169,64],[170,70],[172,72],[174,71],[176,76],[178,79],[180,82],[182,85],[185,90],[188,92]],
+   opt:function(rows,head,T){
+     var d=rows.map(function(r){return [toNum(r[0]),toNum(r[1])]}).filter(function(p){return !isNaN(p[0])&&!isNaN(p[1])});
+     if(d.length<2)return null;
+     return {grid:{left:8,right:24,top:24,bottom:28,containLabel:true},
+       tooltip:{trigger:'item',formatter:function(p){return esc(head[0])+': '+nf.format(p.value[0])+'<br>'+esc(head[1])+': '+nf.format(p.value[1])}},
+       xAxis:val(T,{scale:true,name:head[0],nameLocation:'middle',nameGap:28,nameTextStyle:{color:T.ink2},splitLine:{show:false},axisLine:{show:true,lineStyle:{color:T.axis}}}),
+       yAxis:val(T,{scale:true,name:head[1],nameTextStyle:{color:T.ink2,align:'left'}}),
+       series:[{type:'scatter',data:d,symbolSize:10,itemStyle:Object.assign({opacity:.92},gap(T))}]};
+   }},
+  {id:'hist',g:'pop',name:'Histograma',use:'Cuántos datos caen en cada rango',year:'1891',who:'Karl Pearson',
+   fact:'Pearson le puso el nombre de histograma, aunque ya se dibujaban gráficos parecidos antes.',
+   cols:[{h:'Nota',t:'n',e:1}],
+   rows:[[4.5],[5],[5.5],[6],[6],[6.5],[6.5],[7],[7],[7],[7.5],[7.5],[7.5],[8],[8],[8],[8.5],[8.5],[9],[9],[9.5],[10],[3.5],[5]],
+   opt:function(rows,head,T){
+     var v=ncol(rows,0).filter(function(x){return x!=null});if(v.length<5)return null;
+     var n=v.length,k=Math.min(12,Math.max(5,Math.ceil(Math.log(n)/Math.LN2+1)));
+     var mn=minOf(v),mx=maxOf(v),w=(mx-mn)/k||1,counts=[];for(var b=0;b<k;b++)counts.push(0);
+     v.forEach(function(x){var i=Math.floor((x-mn)/w);if(i>=k)i=k-1;counts[i]++});
+     var labels=counts.map(function(_,i){return nf.format(mn+i*w)+'–'+nf.format(mn+(i+1)*w)});
+     return {grid:{left:8,right:18,top:24,bottom:28,containLabel:true},
+       tooltip:{trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:T.grid,opacity:.45}},formatter:function(p){return esc(p[0].name)+'<br>'+p[0].value+' datos'}},
+       xAxis:cat(T,labels,{name:head[0],nameLocation:'middle',nameGap:28,nameTextStyle:{color:T.ink2}}),
+       yAxis:val(T,{minInterval:1,name:'Nº de datos',nameTextStyle:{color:T.ink2,align:'left'}}),
+       series:[{type:'bar',data:counts,barCategoryGap:'0%',itemStyle:Object.assign({borderRadius:[4,4,0,0]},gap(T))}]};
+   }},
+  {id:'box',g:'pop',name:'Cajas (boxplot)',use:'Mediana y dispersión de cada grupo',year:'1977',who:'John Tukey',
+   fact:'Tukey lo popularizó en su libro Exploratory Data Analysis. La caja guarda la mitad central de los datos y los puntos sueltos son valores atípicos.',
+   cols:[{h:'Grupo',t:'t'},{h:'Nota',t:'n',e:1}],rows:genLong([['Grupo A',6.5,1.2],['Grupo B',7.2,0.9],['Grupo C',5.8,1.8]],10,3),
+   note:'Una fila por medición: el grupo y su valor.',
+   opt:function(rows,head,T){
+     var gs=groupsOf(rows);if(!gs.length)return null;var stats=[],out=[];
+     gs.forEach(function(g,gi){var q1=d3.quantileSorted(g.v,.25),md=d3.quantileSorted(g.v,.5),q3=d3.quantileSorted(g.v,.75),iq=q3-q1;
+       var lo=minOf(g.v.filter(function(x){return x>=q1-1.5*iq})),hi=maxOf(g.v.filter(function(x){return x<=q3+1.5*iq}));
+       stats.push([lo,q1,md,q3,hi]);g.v.forEach(function(x){if(x<lo||x>hi)out.push([gi,x])})});
+     return {grid:gridB(false),
+       tooltip:{trigger:'item',formatter:function(p){if(p.seriesType==='boxplot'){var d=p.data.length===6?p.data.slice(1):p.data;return esc(p.name)+'<br>Máx: '+nf.format(d[4])+'<br>Q3: '+nf.format(d[3])+'<br>Mediana: '+nf.format(d[2])+'<br>Q1: '+nf.format(d[1])+'<br>Mín: '+nf.format(d[0])}return 'Atípico: '+nf.format(p.value[1])}},
+       xAxis:cat(T,gs.map(function(g){return g.n})),yAxis:val(T,{scale:true}),
+       series:[{type:'boxplot',data:stats,boxWidth:[20,64],itemStyle:{color:T.fill,borderColor:T.series[0],borderWidth:2}},
+               {type:'scatter',data:out,symbolSize:8,itemStyle:Object.assign({color:T.series[0]},gap(T))}]};
+   }},
+  {id:'heat',g:'pop',name:'Mapa de calor',use:'Dónde se concentra la intensidad',year:'1873',who:'Toussaint Loua',
+   fact:'Se suele citar como uno de los primeros ejemplos una tabla de estadísticas de los barrios de París, sombreada por Loua en 1873.',
+   cols:[{h:'Día',t:'t'},{h:'Franja',t:'t'},{h:'Consumo (kWh)',t:'n',e:1}],rows:HM,note:'Una fila por celda: fila, columna y valor.',
+   opt:function(rows,head,T){
+     var ys=uniq(col(rows,0)),xs=uniq(col(rows,1)),d=[];
+     rows.forEach(function(r){var v=toNum(r[2]);if(r[0]&&r[1]&&!isNaN(v))d.push([xs.indexOf(r[1]),ys.indexOf(r[0]),v])});
+     if(!d.length)return null;var vs=d.map(function(p){return p[2]});
+     return {grid:{left:8,right:12,top:12,bottom:56,containLabel:true},
+       tooltip:{trigger:'item',formatter:function(p){return esc(ys[p.value[1]])+' · '+esc(xs[p.value[0]])+'<br>'+nf.format(p.value[2])}},
+       xAxis:cat(T,xs,{splitArea:{show:false}}),yAxis:cat(T,ys,{inverse:true}),
+       visualMap:{min:minOf(vs),max:maxOf(vs),calculable:false,orient:'horizontal',left:'center',bottom:4,itemWidth:14,itemHeight:150,inRange:{color:T.q},textStyle:{color:T.ink2}},
+       series:[{type:'heatmap',data:d,itemStyle:gap(T),emphasis:{itemStyle:{borderColor:T.ink,borderWidth:2}}}]};
+   }},
+
+  /* ===== VISTOSOS ===== */
+  {id:'sankey',g:'vis',name:'Sankey',use:'A dónde va cada parte de un total',year:'1898',who:'Matthew Sankey',
+   fact:'Sankey, ingeniero irlandés, lo dibujó para mostrar a dónde se iba la energía de una máquina de vapor.',
+   cols:[{h:'Origen',t:'t'},{h:'Destino',t:'t'},{h:'Cantidad (€)',t:'n',e:1}],
+   rows:[['Nómina','Vivienda',650],['Nómina','Comida',320],['Nómina','Ocio',150],['Nómina','Ahorro',280],['Comida','Súper',240],['Comida','Restaurantes',80],['Ocio','Salidas',90],['Ocio','Suscripciones',60]],
+   note:'Cada fila es un flujo. No puede haber ciclos (A→B→A).',
+   opt:function(rows,head,T){
+     var l=rows.map(function(r){return {source:r[0],target:r[1],value:toNum(r[2])}}).filter(function(x){return x.source&&x.target&&x.value>0});
+     if(!l.length)return null;var nodes=uniq(l.reduce(function(a,x){return a.concat([x.source,x.target])},[]));
+     return {tooltip:{trigger:'item'},series:[{type:'sankey',left:8,right:110,top:12,bottom:12,nodeAlign:'left',nodeGap:12,nodeWidth:14,draggable:false,
+       emphasis:{focus:'adjacency'},lineStyle:{color:'source',opacity:.35,curveness:.5},label:{color:T.ink,fontSize:12},
+       data:nodes.map(function(n,i){return {name:n,itemStyle:{color:T.series[i%8]}}}),links:l}]};
+   }},
+  {id:'treemap',g:'vis',name:'Treemap',use:'Cuánto pesa cada parte dentro de grupos',year:'1991',who:'Ben Shneiderman',
+   fact:'Shneiderman lo ideó porque el disco duro compartido de su departamento se llenaba y nadie sabía qué ocupaba tanto.',
+   cols:[{h:'Grupo',t:'t'},{h:'Elemento',t:'t'},{h:'Gasto (€)',t:'n',e:1}],
+   rows:[['Hogar','Alquiler',650],['Hogar','Luz',90],['Hogar','Internet',40],['Comida','Súper',240],['Comida','Fuera',80],['Ocio','Cine',25],['Ocio','Juegos',60],['Ocio','Salidas',90],['Transporte','Gasolina',110],['Transporte','Seguro',45]],
+   note:'Cada fila: grupo, elemento y valor.',
+   opt:function(rows,head,T){
+     var t=tree(rows);if(!t.length)return null;
+     t.forEach(function(g,k){g.itemStyle={color:T.series[k%8]};g.upperLabel={color:onFill(k)};g.children.forEach(function(c){c.itemStyle={color:T.series[k%8]};c.label={color:onFill(k)}})});
+     return {tooltip:{formatter:function(p){return esc(p.name)+': '+nf.format(p.value)}},
+       series:[{type:'treemap',roam:false,nodeClick:false,breadcrumb:{show:false},top:4,bottom:4,left:4,right:4,squareRatio:1.2,
+         label:{show:true,formatter:'{b}',fontSize:13},upperLabel:{show:true,height:24,fontWeight:600,fontSize:13},
+         itemStyle:{borderColor:T.surface,borderWidth:2,gapWidth:2},
+         levels:[{itemStyle:{borderColor:T.surface,borderWidth:0,gapWidth:4},upperLabel:{show:true}},{itemStyle:{borderColor:T.surface,borderWidth:2,gapWidth:2}}],data:t}]};
+   }},
+  {id:'sunburst',g:'vis',name:'Sunburst',use:'Jerarquías en anillos concéntricos',year:'',who:'',
+   fact:'Es un treemap redondo: cada anillo es un nivel. Se usa mucho en programas que enseñan qué ocupa tu disco duro. Haz clic en un sector para acercarte.',
+   cols:[{h:'Grupo',t:'t'},{h:'Elemento',t:'t'},{h:'Espacio (GB)',t:'n',e:1}],
+   rows:[['Juegos','Steam',220],['Juegos','Otros',80],['Fotos','2024',60],['Fotos','2025',90],['Trabajo','Documentos',15],['Trabajo','Proyectos',40],['Sistema','Windows',70],['Sistema','Programas',55]],
+   note:'Cada fila: grupo, elemento y valor.',
+   opt:function(rows,head,T){
+     var t=tree(rows);if(!t.length)return null;
+     t.forEach(function(g,k){g.itemStyle={color:T.series[k%8]};g.children.forEach(function(c){c.itemStyle={color:T.series[k%8],opacity:.82}})});
+     return {tooltip:{formatter:function(p){return esc(p.name)+': '+nf.format(p.value)}},
+       series:[{type:'sunburst',radius:['10%','90%'],center:['50%','50%'],itemStyle:{borderColor:T.surface,borderWidth:2},label:{color:'#fff',fontSize:12,minAngle:8},
+         levels:[{},{r0:'12%',r:'55%',label:{rotate:'tangential'}},{r0:'57%',r:'90%',label:{rotate:'radial'}}],data:t}]};
+   }},
+  {id:'donut',g:'vis',name:'Anillo (donut)',use:'Un reparto con el total en el centro',year:'',who:'',
+   fact:'Es un quesito con un agujero. Ese hueco se aprovecha para poner el total en el centro.',
+   cols:[{h:'Actividad',t:'t'},{h:'Horas',t:'n',e:1}],rows:[['Dormir',8],['Trabajo',8],['Ocio',3],['Comidas',2],['Traslados',1.5],['Tareas',1.5]],opt:pieOpt(true)},
+  {id:'radar',g:'vis',name:'Radar',use:'Comparar perfiles con varias medidas',year:'',who:'',
+   fact:'También se llama gráfico de araña. Sirve para comparar perfiles, pero ojo: cambiar el orden de los ejes cambia la forma.',
+   cols:[{h:'Atributo',t:'t'},{h:'Guerrero',t:'n',e:1},{h:'Mago',t:'n',e:1},{h:'Ladrón',t:'n',e:1}],
+   rows:[['Fuerza',9,3,5],['Agilidad',4,5,9],['Inteligencia',3,9,6],['Resistencia',8,4,5],['Magia',1,9,3],['Sigilo',2,4,9]],note:'Hasta 3 series. Cada fila es un eje del radar.',
+   opt:function(rows,head,T){
+     var ss=sers(rows,head,1).slice(0,3);if(!ss.length||rows.length<3)return null;
+     var all=[];ss.forEach(function(c){ncol(rows,c).forEach(function(v){if(v!=null)all.push(v)})});var mx=maxOf(all)*1.1||1;
+     return {legend:ss.length>1?legendB(T):{show:false},tooltip:{trigger:'item'},
+       radar:{indicator:rows.map(function(r){return {name:r[0]||'',max:mx}}),radius:'62%',center:['50%',ss.length>1?'56%':'52%'],axisName:{color:T.ink2,fontSize:12},axisLine:{lineStyle:{color:T.grid}},splitLine:{lineStyle:{color:T.grid}},splitArea:{show:false}},
+       series:[{type:'radar',data:ss.map(function(c,k){return {name:head[c],value:ncol(rows,c).map(function(v){return v==null?0:v}),symbol:'circle',symbolSize:8,lineStyle:{width:2,color:T.series[k]},itemStyle:{color:T.series[k],borderColor:T.surface,borderWidth:2},areaStyle:{color:T.series[k],opacity:.14}}})}]};
+   }},
+  {id:'bubble',g:'vis',name:'Burbujas',use:'Tres medidas en un solo gráfico',year:'2006',who:'Hans Rosling',
+   fact:'Rosling los hizo famosos con Gapminder: burbujas que se movían para explicar la salud y la riqueza de los países.',
+   cols:[{h:'Tienda',t:'t'},{h:'Visitas/día',t:'n',e:1},{h:'Ticket medio (€)',t:'n',e:1},{h:'Ventas (€)',t:'n',e:1}],
+   rows:[['Centro',320,18,5760],['Barrio',140,22,3080],['Online',410,31,12710],['Mercadillo',95,9,855],['Outlet',210,15,3150],['Quiosco',60,5,300]],note:'Posición: columnas 2 y 3. Tamaño: columna 4.',
+   opt:function(rows,head,T,mini){
+     var p=rows.map(function(r){return {n:r[0],x:toNum(r[1]),y:toNum(r[2]),s:toNum(r[3])}}).filter(function(q){return !isNaN(q.x)&&!isNaN(q.y)&&q.s>0});
+     if(!p.length)return null;var mx=maxOf(p.map(function(q){return q.s})),k=mini?.5:1;
+     return {grid:{left:8,right:24,top:24,bottom:30,containLabel:true},
+       tooltip:{trigger:'item',formatter:function(q){return esc(q.value[3])+'<br>'+esc(head[1])+': '+nf.format(q.value[0])+'<br>'+esc(head[2])+': '+nf.format(q.value[1])+'<br>'+esc(head[3])+': '+nf.format(q.value[2])}},
+       xAxis:val(T,{scale:true,name:head[1],nameLocation:'middle',nameGap:28,nameTextStyle:{color:T.ink2},splitLine:{show:false},axisLine:{show:true,lineStyle:{color:T.axis}}}),
+       yAxis:val(T,{scale:true,name:head[2],nameTextStyle:{color:T.ink2,align:'left'}}),
+       series:[{type:'scatter',symbolSize:function(d){return k*(8+44*Math.sqrt(d[2]/mx))},
+         data:p.map(function(q,i){return {value:[q.x,q.y,q.s,q.n],itemStyle:{color:T.series[i%8],opacity:.78,borderColor:T.surface,borderWidth:2}}}),
+         label:{show:true,formatter:function(q){return q.value[3]},position:'top',color:T.ink2,fontSize:11}}]};
+   }},
+  {id:'choro',g:'vis',name:'Mapa coroplético',use:'Un mapa pintado según valores',year:'1826',who:'Charles Dupin',
+   fact:'Dupin pintó Francia según el nivel de educación de cada zona. El nombre viene del griego y viene a decir «multitud de lugares».',
+   cols:[{h:'País',t:'t'},{h:'Visitas (miles)',t:'n',e:1}],
+   rows:[['España',82],['Francia',64],['Alemania',70],['Italia',58],['Portugal',40],['Reino Unido',66],['Estados Unidos',90],['Brasil',35],['México',42],['Marruecos',28],['Japón',50],['Australia',30],['India',55],['Argentina',25]],
+   note:'Escribe el país en español o en inglés. Los que no reconozca se quedan sin pintar.',
+   opt:function(rows,head,T){
+     if(!(window.echarts&&echarts.getMap&&echarts.getMap('world')))return {pending:true};
+     var d=rows.map(function(r){return {name:alias(r[0]),value:toNum(r[1])}}).filter(function(x){return x.name&&!isNaN(x.value)});
+     if(!d.length)return null;var vs=d.map(function(x){return x.value});
+     return {tooltip:{trigger:'item',formatter:function(p){return esc(p.name)+': '+(p.value!=null&&!isNaN(p.value)?nf.format(p.value):'sin datos')}},
+       visualMap:{min:minOf(vs),max:maxOf(vs),left:8,bottom:8,calculable:false,text:['Más','Menos'],itemWidth:12,itemHeight:90,inRange:{color:T.q},textStyle:{color:T.ink2}},
+       series:[{type:'map',map:'world',roam:false,data:d,itemStyle:{areaColor:T.grid,borderColor:T.surface,borderWidth:.5},emphasis:{label:{show:false},itemStyle:{areaColor:T.series[1]}}}]};
+   }},
+  {id:'stream',g:'vis',name:'Streamgraph',use:'Series que fluyen como un río',year:'2008',who:'Lee Byron y Martin Wattenberg',
+   fact:'Se hizo famoso con un gráfico del New York Times sobre la taquilla del cine. La anchura de cada corriente es su valor.',
+   cols:[{h:'Mes',t:'t'},{h:'Pop',t:'n',e:1},{h:'Rock',t:'n',e:1},{h:'Electrónica',t:'n',e:1}],rows:STR,note:'Cada columna de valores es una corriente.',
+   opt:function(rows,head,T){
+     var ss=sers(rows,head,1);if(!ss.length||rows.length<2)return null;var labels=col(rows,0),d=[];
+     rows.forEach(function(r,i){ss.forEach(function(c){var v=toNum(r[c]);d.push([i,isNaN(v)?0:v,head[c]])})});
+     return {legend:Object.assign(legendB(T),{data:ss.map(function(c){return head[c]})}),
+       tooltip:{trigger:'axis',axisPointer:{type:'line',lineStyle:{color:T.axis}},formatter:function(ps){var a=[].concat(ps);return esc(labels[Math.round(a[0].value[0])]||'')+'<br>'+a.map(function(p){return p.marker+esc(p.value[2])+': '+nf.format(p.value[1])}).join('<br>')}},
+       singleAxis:{type:'value',min:0,max:rows.length-1,top:48,bottom:30,left:16,right:16,minInterval:1,axisLabel:{color:T.muted,formatter:function(v){return Number.isInteger(v)?(labels[v]||''):''}},axisLine:{lineStyle:{color:T.axis}},axisTick:{show:false},splitLine:{show:false}},
+       series:[{type:'themeRiver',data:d,label:{show:false},emphasis:{focus:'series'}}]};
+   }},
+  {id:'calendar',g:'vis',name:'Calendario de calor',use:'Ver hábitos día a día',year:'',who:'',
+   fact:'Lo popularizó GitHub con su cuadrícula verde de contribuciones. Es ideal para ver qué días rindes y cuáles no.',
+   cols:[{h:'Fecha',t:'d'},{h:'Horas de estudio',t:'n',e:1}],rows:genDays(),note:'Fecha como AAAA-MM-DD o DD/MM/AAAA.',
+   opt:function(rows,head,T){
+     var d=rows.map(function(r){return [normDate(r[0]),toNum(r[1])]}).filter(function(x){return x[0]&&!isNaN(x[1])});
+     if(!d.length)return null;d.sort(function(a,b){return a[0]<b[0]?-1:a[0]>b[0]?1:0});
+     var mx=maxOf(d.map(function(x){return x[1]}))||1;
+     return {tooltip:{formatter:function(p){return esc(p.value[0])+': '+nf.format(p.value[1])}},
+       visualMap:{min:0,max:mx,calculable:false,orient:'horizontal',left:'center',bottom:4,itemWidth:14,itemHeight:150,inRange:{color:T.q},textStyle:{color:T.ink2}},
+       calendar:{top:40,left:34,right:12,cellSize:['auto',18],range:[d[0][0],d[d.length-1][0]],itemStyle:{borderWidth:2,borderColor:T.surface,color:T.grid},splitLine:{show:false},yearLabel:{show:false},
+         dayLabel:{firstDay:1,nameMap:['D','L','M','X','J','V','S'],color:T.muted},monthLabel:{nameMap:['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'],color:T.ink2}},
+       series:[{type:'heatmap',coordinateSystem:'calendar',data:d}]};
+   }},
+  {id:'chord',g:'vis',name:'Diagrama de cuerdas',use:'Quién se conecta con quién',year:'2009',who:'Circos',
+   fact:'Se popularizó en genética con el programa Circos, que dibuja las conexiones entre partes del genoma.',
+   cols:[{h:'Origen',t:'t'},{h:'Destino',t:'t'},{h:'Flujo',t:'n',e:1}],
+   rows:[['Norte','Sur',30],['Norte','Este',12],['Norte','Oeste',18],['Sur','Norte',22],['Sur','Este',25],['Sur','Oeste',8],['Este','Norte',10],['Este','Sur',14],['Este','Oeste',20],['Oeste','Norte',16],['Oeste','Sur',9],['Oeste','Este',11]],
+   note:'Cada fila es un flujo de un grupo a otro.',
+   draw:function(el,rows,head,T,mini){
+     var s=sz(el),W=s.W,H=s.H;var names=uniq(rows.reduce(function(a,r){return a.concat([r[0],r[1]])},[]));
+     if(names.length<2){msg(el,'Añade al menos dos grupos.');return}
+     var m=names.map(function(){return names.map(function(){return 0})});
+     rows.forEach(function(r){var v=toNum(r[2]);if(r[0]&&r[1]&&v>0)m[names.indexOf(r[0])][names.indexOf(r[1])]+=v});
+     var svg=mkSvg(el,W,H);var R=Math.min(W,H)/2-(mini?5:56),inner=R-(mini?7:14);
+     var chords=d3.chordDirected().padAngle(.04).sortSubgroups(d3.descending)(m);
+     var g=svg.append('g').attr('transform','translate('+W/2+','+H/2+')');
+     var colr=function(i){return T.series[i%8]};
+     g.append('g').selectAll('path').data(chords).join('path').attr('d',d3.ribbonArrow().radius(inner-1).padAngle(1/inner))
+       .attr('fill',function(d){return colr(d.source.index)}).attr('fill-opacity',.6).attr('stroke',T.surface).attr('stroke-width',1)
+       .append('title').text(function(d){return names[d.source.index]+' → '+names[d.target.index]+': '+nf.format(d.source.value)});
+     g.append('g').selectAll('path').data(chords.groups).join('path').attr('d',d3.arc().innerRadius(inner).outerRadius(R))
+       .attr('fill',function(d){return colr(d.index)}).append('title').text(function(d){return names[d.index]+': '+nf.format(d.value)});
+     if(!mini)g.append('g').selectAll('text').data(chords.groups).join('text').each(function(d){
+       var a=(d.startAngle+d.endAngle)/2,flip=a>Math.PI;
+       d3.select(this).attr('transform','rotate('+(a*180/Math.PI-90)+') translate('+(R+8)+')'+(flip?' rotate(180)':'')).attr('text-anchor',flip?'end':'start').attr('dy','.35em').text(names[d.index])
+     }).attr('fill',T.ink2).attr('font-size',12);
+   }},
+
+  /* ===== RAROS ===== */
+  {id:'stem',g:'rar',name:'Tallo y hojas',use:'Un histograma hecho con los propios números',year:'1977',who:'John Tukey',
+   fact:'No pierdes ningún dato: cada hoja es un número real. Se podía escribir con una máquina de escribir, sin ordenador.',
+   cols:[{h:'Edad',t:'n',e:1}],rows:[[12],[15],[21],[23],[23],[27],[31],[34],[35],[35],[38],[41],[42],[47],[48],[52],[55],[59],[63],[67],[71],[74],[88],[95]],
+   draw:function(el,rows,head,T,mini){
+     var v=ncol(rows,0).filter(function(x){return x!=null&&x>=0}).sort(function(a,b){return a-b});
+     if(v.length<2){msg(el,'Escribe al menos dos números (no negativos).');return}
+     var ints=v.every(function(x){return Math.floor(x)===x})&&maxOf(v)>=20;var map={};
+     v.forEach(function(x){var st,lf;if(ints){st=Math.floor(x/10);lf=x%10}else{st=Math.floor(x);lf=Math.round((x-st)*10);if(lf>9){st++;lf=0}}(map[st]=map[st]||[]).push(lf)});
+     var a=Math.floor(minOf(v)/(ints?10:1)),b=Math.floor(maxOf(v)/(ints?10:1)),h='<div class="st">';
+     for(var s=a;s<=b;s++){var lv=map[s]||[];h+='<div class="ln"><span class="sk">'+s+'</span><span class="bar">'+(lv.join(' ')||'&nbsp;')+'</span>'+(lv.length?'<span class="sc2">'+lv.length+'</span>':'')+'</div>'}
+     h+='<div class="key">Clave: '+(ints?'3 | 5 = 35':'3 | 5 = 3,5')+'. El número gris es cuántos datos hay en cada fila.</div></div>';
+     el.innerHTML=h;
+   }},
+  {id:'violin',g:'rar',name:'Violín',use:'La forma completa de los datos de cada grupo',year:'1998',who:'Hintze y Nelson',
+   fact:'Es un boxplot que enseña dónde se amontonan los datos y dónde no. Su silueta recuerda a un violín.',
+   cols:[{h:'Grupo',t:'t'},{h:'Tiempo (min)',t:'n',e:1}],rows:genLong([['Turno A',32,5],['Turno B',40,9],['Turno C',27,4]],16,11),note:'Una fila por medición: el grupo y su valor.',
+   draw:function(el,rows,head,T,mini){
+     var gs=groupsOf(rows);if(!gs.length){msg(el,'Necesito grupos con al menos dos valores.');return}
+     var s=sz(el),W=s.W,H=s.H,svg=mkSvg(el,W,H),all=[];gs.forEach(function(g){all=all.concat(g.v)});
+     var lo=minOf(all),hi=maxOf(all),pad=(hi-lo||1)*.12,m={l:mini?4:46,r:mini?4:12,t:mini?4:14,b:mini?4:30};
+     var y=d3.scaleLinear([lo-pad,hi+pad],[H-m.b,m.t]),x=d3.scaleBand(gs.map(function(g){return g.n}),[m.l,W-m.r]).paddingInner(.25).paddingOuter(.15);
+     if(!mini)y.ticks(5).forEach(function(t){svg.append('line').attr('x1',m.l).attr('x2',W-m.r).attr('y1',y(t)).attr('y2',y(t)).attr('stroke',T.grid);svg.append('text').attr('x',m.l-8).attr('y',y(t)).attr('dy','.35em').attr('text-anchor','end').attr('font-size',12).attr('fill',T.muted).text(nf.format(t))});
+     gs.forEach(function(g,k){
+       var h=bw(g.v),a=g.v[0]-2*h,b=g.v[g.v.length-1]+2*h,dens=kde(g.v,h,a,b,60),mx=maxOf(dens.map(function(d){return d[1]})),cx=x(g.n)+x.bandwidth()/2,w=x.bandwidth()/2;
+       var area=d3.area().x0(function(d){return cx-d[1]/mx*w}).x1(function(d){return cx+d[1]/mx*w}).y(function(d){return y(d[0])}).curve(d3.curveBasis);
+       svg.append('path').attr('d',area(dens)).attr('fill',T.series[k%8]).attr('fill-opacity',.85).attr('stroke',T.surface).attr('stroke-width',1.5)
+         .append('title').text(g.n+': mediana '+nf.format(d3.quantileSorted(g.v,.5)));
+       var q1=d3.quantileSorted(g.v,.25),q2=d3.quantileSorted(g.v,.5),q3=d3.quantileSorted(g.v,.75);
+       svg.append('line').attr('x1',cx).attr('x2',cx).attr('y1',y(q1)).attr('y2',y(q3)).attr('stroke',T.ink).attr('stroke-width',3).attr('stroke-linecap','round');
+       svg.append('circle').attr('cx',cx).attr('cy',y(q2)).attr('r',4).attr('fill',T.surface).attr('stroke',T.ink).attr('stroke-width',1.5);
+       if(!mini)svg.append('text').attr('x',cx).attr('y',H-m.b+18).attr('text-anchor','middle').attr('font-size',12.5).attr('fill',T.ink2).text(g.n);
+     });
+   }},
+  {id:'parallel',g:'rar',name:'Coordenadas paralelas',use:'Comparar elementos en muchas variables a la vez',year:'',who:'Popularizado por Alfred Inselberg',
+   fact:'Cada línea es un elemento que cruza todos los ejes. Si muchas líneas se cruzan entre dos ejes, esas dos variables van en sentido contrario.',
+   cols:[{h:'Coche',t:'t'},{h:'Potencia (CV)',t:'n',e:1},{h:'Precio (k€)',t:'n',e:1},{h:'Peso (kg)',t:'n',e:1},{h:'Consumo (l/100)',t:'n',e:1}],
+   rows:[['Urbano',70,14,1050,5.2],['Familiar',110,24,1400,6.1],['Deportivo',220,48,1350,8.8],['Furgoneta',95,22,1650,7.4],['Híbrido',140,32,1500,4.1]],note:'Cada fila es una línea; cada columna de valores, un eje.',
+   opt:function(rows,head,T){
+     var dims=[1,2,3,4].filter(function(c){return rows.some(function(r){return !isNaN(toNum(r[c]))})});
+     var it=rows.filter(function(r){return r[0]});if(dims.length<2||!it.length)return null;
+     return {legend:Object.assign(legendB(T),{data:it.map(function(r){return r[0]})}),
+       tooltip:{trigger:'item',formatter:function(p){return esc(p.seriesName)+'<br>'+dims.map(function(c,i){return esc(head[c])+': '+nf.format(p.value[i])}).join('<br>')}},
+       parallel:{left:40,right:40,top:84,bottom:30},
+       parallelAxis:dims.map(function(c,i){return {dim:i,name:head[c],type:'value',nameTextStyle:{color:T.ink2,fontSize:12},axisLine:{lineStyle:{color:T.axis}},axisTick:{show:false},axisLabel:{color:T.muted}}}),
+       series:it.map(function(r,i){return {type:'parallel',name:r[0],smooth:false,lineStyle:{width:2.5,opacity:.9,color:T.series[i%8]},data:[dims.map(function(c){var v=toNum(r[c]);return isNaN(v)?0:v})]}})};
+   }},
+  {id:'bullet',g:'rar',name:'Bullet chart',use:'Progreso frente a un objetivo',year:'2005',who:'Stephen Few',
+   fact:'Few lo diseñó para sustituir los velocímetros de los cuadros de mando, que ocupaban mucho espacio y decían poco.',
+   cols:[{h:'Indicador',t:'t'},{h:'Valor',t:'n',e:1},{h:'Objetivo',t:'n',e:1},{h:'Máximo',t:'n',e:1}],
+   rows:[['Ahorro del mes (€)',280,300,400],['Horas de estudio',22,25,40],['Pasos al día (miles)',7.8,10,15],['Agua (litros)',1.4,2,3]],note:'La barra es el valor y la raya negra es el objetivo.',
+   draw:function(el,rows,head,T,mini){
+     var it=rows.map(function(r){return {n:r[0],v:toNum(r[1]),t:toNum(r[2]),m:toNum(r[3])}}).filter(function(d){return d.n&&!isNaN(d.v)});
+     if(!it.length){msg(el,'Añade un indicador con su valor.');return}
+     el.innerHTML='<div class="bul">'+it.map(function(d){
+       var m=isNaN(d.m)?Math.max(d.v,isNaN(d.t)?0:d.t)*1.25:d.m;if(!(m>0))m=1;var p=function(x){return Math.max(0,Math.min(100,x/m*100))};
+       return '<div class="bl"><div class="bn">'+esc(d.n)+'</div><div class="bt" title="'+esc(d.n)+'"><i class="k3"></i><i class="k2"></i><i class="k1"></i><i class="bb" style="width:'+p(d.v)+'%"></i>'+(isNaN(d.t)?'':'<i class="bm" style="left:'+p(d.t)+'%"></i>')+'</div><div class="bv">'+nf.format(d.v)+(isNaN(d.t)?'':' / '+nf.format(d.t))+'</div></div>';
+     }).join('')+'</div>';
+   }},
+  {id:'spark',g:'rar',name:'Sparklines',use:'Mini-gráficos para meter en una tabla',year:'2006',who:'Edward Tufte',
+   fact:'Tufte los definió como gráficos «del tamaño de una palabra»: caben dentro de una frase o de una celda.',
+   cols:[{h:'Concepto',t:'t'},{h:'Valores (separados por espacios)',t:'t'}],
+   rows:[['Gasolina (€/l)','1.62 1.65 1.61 1.58 1.60 1.66 1.70 1.68 1.64 1.59'],['Luz (€/kWh)','0.14 0.16 0.15 0.19 0.22 0.20 0.17 0.15 0.14 0.13'],['Temperatura (°C)','8 9 12 15 18 23 27 26 21 16 11 8'],['Pasos diarios','6200 7800 5400 9100 10300 8800 4300']],
+   note:'En cada fila, escribe los valores separados por espacios.',
+   draw:function(el,rows,head,T,mini){
+     var it=rows.map(function(r){return {n:r[0],v:parseSeries(r[1])}}).filter(function(d){return d.n&&d.v.length>=2});
+     if(!it.length){msg(el,'Cada fila necesita un nombre y al menos dos valores.');return}
+     el.innerHTML='<div class="sp">'+it.map(function(d){
+       var mn=minOf(d.v),mx=maxOf(d.v),rg=(mx-mn)||1,n=d.v.length;
+       var pts=d.v.map(function(v,i){return [i/(n-1)*100,92-(v-mn)/rg*84]});
+       var line=pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1)}).join(' ');var last=pts[n-1];
+       var first=d.v[0],lastV=d.v[n-1],ch=first?(lastV-first)/Math.abs(first)*100:0;
+       return '<div class="rw"><div class="sn">'+esc(d.n)+'</div><div class="sg"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="'+line+' 100,100 0,100" fill="var(--s1)" fill-opacity=".14"></polygon><polyline points="'+line+'" fill="none" stroke="var(--s1)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"></polyline></svg><span class="dot" style="left:'+last[0]+'%;top:'+last[1]+'%"></span></div><div class="sv">'+nf.format(lastV)+'</div><div class="sc">'+(ch>=0?'▲ ':'▼ ')+nf.format(Math.abs(ch))+' %</div></div>';
+     }).join('')+'</div>';
+   }},
+  {id:'slope',g:'rar',name:'Slope chart',use:'Antes y después de cada elemento',year:'',who:'Popularizado por Edward Tufte',
+   fact:'Solo compara dos momentos, pero deja claro qué sube, qué baja y qué se cruza por el camino.',
+   cols:[{h:'Elemento',t:'t'},{h:'2025',t:'n',e:1},{h:'2026',t:'n',e:1}],
+   rows:[['Alquiler',620,650],['Comida',340,320],['Luz',80,95],['Ocio',90,140],['Transporte',150,130],['Salud',30,45]],note:'Azul: sube. Naranja: baja.',
+   draw:function(el,rows,head,T,mini){
+     var it=rows.map(function(r){return {n:r[0],a:toNum(r[1]),b:toNum(r[2])}}).filter(function(d){return d.n&&!isNaN(d.a)&&!isNaN(d.b)});
+     if(it.length<1){msg(el,'Cada fila necesita un nombre y dos valores.');return}
+     var s=sz(el),W=s.W,H=s.H,svg=mkSvg(el,W,H),m={t:mini?6:38,b:mini?6:30},xl=W*(mini?.25:.34),xr=W*(mini?.75:.66);
+     var all=[];it.forEach(function(d){all.push(d.a,d.b)});var y=d3.scaleLinear([minOf(all),maxOf(all)],[H-m.b-6,m.t+6]);
+     var spread=function(arr){var s2=arr.slice().sort(function(p,q){return p.y-q.y});for(var k=1;k<s2.length;k++)if(s2[k].y-s2[k-1].y<15)s2[k].y=s2[k-1].y+15;return s2};
+     var L=spread(it.map(function(d,i){return {i:i,y:y(d.a)}})),R=spread(it.map(function(d,i){return {i:i,y:y(d.b)}}));
+     var ly={},ry={};L.forEach(function(p){ly[p.i]=p.y});R.forEach(function(p){ry[p.i]=p.y});
+     it.forEach(function(d,i){
+       var c=d.b>d.a?T.series[0]:(d.b<d.a?T.series[1]:T.axis);
+       svg.append('line').attr('x1',xl).attr('x2',xr).attr('y1',y(d.a)).attr('y2',y(d.b)).attr('stroke',c).attr('stroke-width',2).append('title').text(d.n+': '+nf.format(d.a)+' → '+nf.format(d.b));
+       svg.append('circle').attr('cx',xl).attr('cy',y(d.a)).attr('r',4).attr('fill',c).attr('stroke',T.surface).attr('stroke-width',2);
+       svg.append('circle').attr('cx',xr).attr('cy',y(d.b)).attr('r',4).attr('fill',c).attr('stroke',T.surface).attr('stroke-width',2);
+       if(!mini){
+         svg.append('text').attr('x',xl-10).attr('y',ly[i]).attr('dy','.35em').attr('text-anchor','end').attr('font-size',13).attr('fill',T.ink2).text(d.n+'  '+nf.format(d.a));
+         svg.append('text').attr('x',xr+10).attr('y',ry[i]).attr('dy','.35em').attr('font-size',13).attr('fill',T.ink2).text(nf.format(d.b)+'  '+d.n);
+       }
+     });
+     if(!mini){
+       svg.append('text').attr('x',xl).attr('y',18).attr('text-anchor','middle').attr('font-size',13).attr('font-weight',600).attr('fill',T.ink).text(head[1]);
+       svg.append('text').attr('x',xr).attr('y',18).attr('text-anchor','middle').attr('font-size',13).attr('font-weight',600).attr('fill',T.ink).text(head[2]);
+       svg.append('rect').attr('x',xl).attr('y',H-18).attr('width',12).attr('height',12).attr('rx',3).attr('fill',T.series[0]);
+       svg.append('text').attr('x',xl+18).attr('y',H-8).attr('font-size',12.5).attr('fill',T.ink2).text('Sube');
+       svg.append('rect').attr('x',xl+80).attr('y',H-18).attr('width',12).attr('height',12).attr('rx',3).attr('fill',T.series[1]);
+       svg.append('text').attr('x',xl+98).attr('y',H-8).attr('font-size',12.5).attr('fill',T.ink2).text('Baja');
+     }
+   }},
+  {id:'mekko',g:'rar',name:'Marimekko',use:'Dos dimensiones: anchura y reparto',year:'',who:'',
+   fact:'Se llama así por la marca finlandesa de telas Marimekko, cuyos estampados de bloques de colores se parecen mucho.',
+   cols:[{h:'Región',t:'t'},{h:'Producto',t:'t'},{h:'Ventas (k€)',t:'n',e:1}],
+   rows:[['Norte','A',40],['Norte','B',25],['Norte','C',15],['Centro','A',30],['Centro','B',50],['Centro','C',40],['Sur','A',20],['Sur','B',15],['Sur','C',35]],note:'La anchura de cada columna es su total; la altura de cada bloque, su parte.',
+   draw:function(el,rows,head,T,mini){
+     var cs=uniq(col(rows,0)),sg=uniq(col(rows,1));
+     var val=function(c,s){return rows.filter(function(r){return r[0]===c&&r[1]===s}).reduce(function(a,r){var v=toNum(r[2]);return a+(v>0?v:0)},0)};
+     var tot=cs.map(function(c){return sg.reduce(function(a,s){return a+val(c,s)},0)}),grand=tot.reduce(function(a,b){return a+b},0);
+     if(!grand||!cs.length||!sg.length){msg(el,'Necesito columna, segmento y un valor positivo.');return}
+     var s=sz(el),W=s.W,H=s.H,svg=mkSvg(el,W,H),m={l:mini?2:38,r:mini?2:8,t:mini?2:34,b:mini?2:46},iw=W-m.l-m.r,ih=H-m.t-m.b;
+     if(!mini){var lx=m.l;sg.forEach(function(sn,k){svg.append('rect').attr('x',lx).attr('y',8).attr('width',12).attr('height',12).attr('rx',3).attr('fill',T.series[k%8]);svg.append('text').attr('x',lx+18).attr('y',18).attr('font-size',12.5).attr('fill',T.ink2).text(sn);lx+=40+sn.length*7});
+       [0,50,100].forEach(function(p){svg.append('text').attr('x',m.l-8).attr('y',m.t+ih-ih*p/100).attr('dy','.35em').attr('text-anchor','end').attr('font-size',12).attr('fill',T.muted).text(p+'%')})}
+     var x=m.l;
+     cs.forEach(function(c,ci){var w=tot[ci]/grand*iw,y=m.t+ih;
+       sg.forEach(function(sn,k){var v=val(c,sn);if(!v)return;var h=v/tot[ci]*ih;y-=h;
+         svg.append('rect').attr('x',x).attr('y',y).attr('width',w).attr('height',h).attr('fill',T.series[k%8]).attr('stroke',T.surface).attr('stroke-width',2).append('title').text(c+' · '+sn+': '+nf.format(v));
+         if(!mini&&w>38&&h>18)svg.append('text').attr('x',x+w/2).attr('y',y+h/2).attr('dy','.35em').attr('text-anchor','middle').attr('font-size',12).attr('fill',onFill(k)).text(Math.round(v/tot[ci]*100)+'%')});
+       if(!mini){svg.append('text').attr('x',x+w/2).attr('y',H-m.b+18).attr('text-anchor','middle').attr('font-size',12.5).attr('fill',T.ink2).text(c);
+         if(w>46)svg.append('text').attr('x',x+w/2).attr('y',H-m.b+34).attr('text-anchor','middle').attr('font-size',11.5).attr('fill',T.muted).text(Math.round(tot[ci]/grand*100)+' % del total')}
+       x+=w});
+   }},
+  {id:'pareto',g:'rar',name:'Pareto',use:'Qué pocas causas explican casi todo',year:'',who:'Joseph Juran',
+   fact:'Juran lo bautizó por Vilfredo Pareto, que observó que el 80 % de la tierra de Italia era del 20 % de los propietarios.',
+   cols:[{h:'Causa',t:'t'},{h:'Incidencias',t:'n',e:1}],
+   rows:[['Retrasos de proveedor',48],['Fallos de máquina',31],['Errores de pedido',14],['Falta de personal',9],['Roturas',6],['Otros',4]],note:'Las barras y la línea usan la misma escala: % sobre el total.',
+   opt:function(rows,head,T){
+     var it=rows.map(function(r){return {n:r[0],v:toNum(r[1])}}).filter(function(d){return d.n&&d.v>0}).sort(function(a,b){return b.v-a.v});
+     if(it.length<2)return null;var total=it.reduce(function(s,d){return s+d.v},0),acc=0;
+     var share=it.map(function(d){return Math.round(d.v/total*1000)/10}),cum=it.map(function(d){acc+=d.v;return Math.round(acc/total*1000)/10});
+     return {grid:gridB(true),legend:legendB(T),
+       tooltip:{trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:T.grid,opacity:.45}},valueFormatter:function(v){return nf.format(v)+' %'}},
+       xAxis:cat(T,it.map(function(d){return d.n}),{axisLabel:{color:T.muted,interval:0,width:84,overflow:'break'}}),
+       yAxis:val(T,{min:0,max:100,axisLabel:{color:T.muted,formatter:function(v){return v+' %'}}}),
+       series:[{name:'Parte del total',type:'bar',data:share,barMaxWidth:32,itemStyle:Object.assign({borderRadius:[4,4,0,0]},gap(T))},
+         {name:'Acumulado',type:'line',data:cum,symbol:'circle',symbolSize:8,lineStyle:{width:2},itemStyle:Object.assign({color:T.series[1]},gap(T)),
+          markLine:{silent:true,symbol:'none',lineStyle:{color:T.muted,type:'dashed'},label:{formatter:'80 %',color:T.ink2},data:[{yAxis:80}]}}]};
+   }},
+  {id:'candle',g:'rar',name:'Velas japonesas',use:'Cuatro datos por periodo: abre, cierra, mínimo y máximo',year:'Siglo XVIII',who:'Munehisa Homma',
+   fact:'Las inventó un comerciante de arroz japonés para seguir los precios. Cada vela cuenta cuatro datos de un vistazo.',
+   cols:[{h:'Día',t:'t'},{h:'Apertura',t:'n',e:1},{h:'Cierre',t:'n',e:1},{h:'Mínimo',t:'n',e:1},{h:'Máximo',t:'n',e:1}],
+   rows:[['Día 1',100,104,98,106],['Día 2',104,102,100,107],['Día 3',102,108,101,110],['Día 4',108,111,106,113],['Día 5',111,109,107,114],['Día 6',109,105,103,111],['Día 7',105,107,102,109],['Día 8',107,113,106,115],['Día 9',113,116,112,118],['Día 10',116,114,111,117],['Día 11',114,119,113,121],['Día 12',119,118,115,122]],
+   opt:function(rows,head,T){
+     var it=rows.filter(function(r){return [1,2,3,4].every(function(c){return !isNaN(toNum(r[c]))})});if(it.length<2)return null;
+     return {title:{text:'Azul: cierra más alto de lo que abre · Naranja: cierra más bajo',left:0,top:0,textStyle:{fontSize:12,color:T.ink2,fontWeight:'normal'}},
+       grid:{left:8,right:18,top:34,bottom:8,containLabel:true},
+       tooltip:{trigger:'axis',axisPointer:{type:'cross',lineStyle:{color:T.axis}},formatter:function(ps){var p=[].concat(ps)[0],d=p.data.length===5?p.data.slice(1):p.data;return esc(p.name)+'<br>Apertura: '+nf.format(d[0])+'<br>Cierre: '+nf.format(d[1])+'<br>Mínimo: '+nf.format(d[2])+'<br>Máximo: '+nf.format(d[3])}},
+       xAxis:cat(T,it.map(function(r){return r[0]})),yAxis:val(T,{scale:true}),
+       series:[{type:'candlestick',data:it.map(function(r){return [toNum(r[1]),toNum(r[2]),toNum(r[3]),toNum(r[4])]}),itemStyle:{color:T.series[0],color0:T.series[1],borderColor:T.series[0],borderColor0:T.series[1],borderWidth:2}}]};
+   }},
+  {id:'ridge',g:'rar',name:'Ridgeline',use:'Varias distribuciones apiladas como montañas',year:'1979',who:'Joy Division',
+   fact:'Es el estilo de la portada de «Unknown Pleasures»: los pulsos de una estrella dibujados como montañas apiladas.',
+   cols:[{h:'Mes',t:'t'},{h:'Temperatura (°C)',t:'n',e:1}],rows:genLong([['Ene',7,3],['Feb',9,3],['Mar',12,3.5],['Abr',15,3],['May',19,3.5]],12,5),note:'Una fila por medición: el grupo y su valor.',
+   draw:function(el,rows,head,T,mini){
+     var gs=groupsOf(rows);if(!gs.length){msg(el,'Necesito grupos con al menos dos valores.');return}
+     var s=sz(el),W=s.W,H=s.H,svg=mkSvg(el,W,H),all=[];gs.forEach(function(g){all=all.concat(g.v)});
+     var lo=minOf(all),hi=maxOf(all),pad=(hi-lo||1)*.18,m={l:mini?4:64,r:mini?4:14,t:mini?6:14,b:mini?4:30};
+     var x=d3.scaleLinear([lo-pad,hi+pad],[m.l,W-m.r]),step=(H-m.t-m.b)/(gs.length+1.2);
+     var dens=gs.map(function(g){var h=bw(g.v);return kde(g.v,h,lo-pad,hi+pad,80)});
+     var mx=maxOf(dens.map(function(d){return maxOf(d.map(function(p){return p[1]}))})),sc=step*2.3/mx;
+     gs.forEach(function(g,k){
+       var base=m.t+step*(k+1.2),d=dens[k];
+       var area=d3.area().x(function(p){return x(p[0])}).y0(base).y1(function(p){return base-p[1]*sc}).curve(d3.curveBasis);
+       svg.append('path').attr('d',area(d)).attr('fill',T.surface).attr('stroke',T.ink).attr('stroke-width',mini?1:1.6).attr('stroke-linejoin','round').append('title').text(g.n);
+       if(!mini)svg.append('text').attr('x',m.l-10).attr('y',base).attr('text-anchor','end').attr('font-size',12.5).attr('fill',T.ink2).text(g.n);
+     });
+     if(!mini){svg.append('line').attr('x1',m.l).attr('x2',W-m.r).attr('y1',H-m.b+4).attr('y2',H-m.b+4).attr('stroke',T.axis);
+       x.ticks(6).forEach(function(t){svg.append('text').attr('x',x(t)).attr('y',H-m.b+20).attr('text-anchor','middle').attr('font-size',12).attr('fill',T.muted).text(nf.format(t))})}
+   }}
+  ];
+
+  var GROUPS=[{id:'pop',name:'Populares',sub:'Los de todos los días'},{id:'vis',name:'Vistosos',sub:'Para lucirse'},{id:'rar',name:'Raros',sub:'Poco conocidos, muy útiles'}];
+  var byId={};CH.forEach(function(c){byId[c.id]=c});
+
+  /* ---------- estado ---------- */
+  var S={};
+  CH.forEach(function(c){
+    var st={head:c.cols.map(function(x){return x.h}),rows:c.rows.map(function(r){return c.cols.map(function(_,i){return r[i]==null?'':String(r[i])})})};
+    try{var sv=JSON.parse(localStorage.getItem('gu1:'+c.id)||'null');
+      if(sv&&Array.isArray(sv.head)&&Array.isArray(sv.rows)&&sv.head.length===c.cols.length&&sv.rows.length&&sv.rows.every(Array.isArray)){st.head=sv.head;st.rows=sv.rows}}catch(e){}
+    S[c.id]=st;
+  });
+  var curId='line',group='pop',galleryGroup=null;
+  function save(id){try{localStorage.setItem('gu1:'+id,JSON.stringify(S[id]))}catch(e){}}
+
+  /* ---------- pintar ---------- */
+  function paint(el,c,s,T,mini){
+    var old=window.echarts&&echarts.getInstanceByDom(el);if(old)old.dispose();
+    el.innerHTML='';
+    try{
+      var rows=s.rows.filter(function(r){return r.some(function(x){return String(x==null?'':x).trim()!==''})});
+      if(c.opt){
+        var o=c.opt(rows,s.head,T,mini);
+        if(!o){msg(el,'Faltan datos para dibujar este gráfico.');return}
+        if(o.pending){msg(el,mapFailed?'No se ha podido cargar el mapa. Comprueba tu conexión.':'Cargando el mapa…');return}
+        var io={renderer:'svg'};if(!el.clientWidth)io.width=el.id==='canvas'?600:160;if(!el.clientHeight)io.height=el.id==='canvas'?340:92;
+        var inst=echarts.init(el,null,io);
+        var fo=finalize(o,T);inst.setOption(mini?miniify(fo):fo,true);
+      }else{c.draw(el,rows,s.head,T,mini)}
+    }catch(e){
+      var detail=(!mini&&e&&e.message)?' ['+c.id+': '+String(e.message).slice(0,120)+']':'';
+      msg(el,'No se ha podido dibujar con estos datos.'+detail);if(window.console)console.warn(c.id,e);
+    }
+  }
+  function paintMain(){paint($('canvas'),byId[curId],S[curId],theme(),false)}
+  function paintThumb(id){var el=$('th-'+id);if(el)paint(el,byId[id],S[id],theme(),true)}
+
+  function renderTabs(){
+    $('tabs').innerHTML=GROUPS.map(function(g){return '<button type="button" class="tab" data-g="'+g.id+'" aria-pressed="'+(g.id===group)+'"><b>'+g.name+'</b><span>'+g.sub+'</span></button>'}).join('');
+  }
+  function renderGallery(){
+    if(galleryGroup!==group){
+      galleryGroup=group;
+      $('tiles').innerHTML=CH.filter(function(c){return c.g===group}).map(function(c){return '<button type="button" class="tile" data-id="'+c.id+'" aria-pressed="'+(c.id===curId)+'"><div class="thumb" id="th-'+c.id+'"></div><span class="tn">'+esc(c.name)+'</span></button>'}).join('');
+      CH.filter(function(c){return c.g===group}).forEach(function(c){paintThumb(c.id)});
+    }else{
+      Array.prototype.forEach.call($('tiles').children,function(b){b.setAttribute('aria-pressed',b.dataset.id===curId)});
+    }
+  }
+  function renderPlate(){
+    var c=byId[curId],gn=GROUPS.filter(function(g){return g.id===c.g})[0].name;
+    $('top').innerHTML='<div><p class="eyebrow">'+gn+'</p><h2>'+esc(c.name)+'</h2><p class="use">'+esc(c.use)+'</p></div>'+((c.year||c.who)?'<div class="yr">'+(c.year?'<span class="y">'+esc(c.year)+'</span>':'')+(c.who?'<span class="w">'+esc(c.who)+'</span>':'')+'</div>':'');
+    $('fact').innerHTML='<b>Curiosidad.</b> '+esc(c.fact);
+    $('note').textContent=c.note||'';
+  }
+  function renderEditor(){
+    var c=byId[curId],s=S[curId];
+    var h='<table><thead><tr>'+c.cols.map(function(col,i){return '<th class="'+(col.t==='n'?'num':'')+'">'+(col.e?'<input class="hin '+(col.t==='n'?'num':'')+'" data-h="'+i+'" value="'+esc(s.head[i])+'" aria-label="Nombre de la columna '+(i+1)+'">':'<span class="th-lbl">'+esc(s.head[i])+'</span>')+'</th>'}).join('')+'<th class="xc"></th></tr></thead><tbody>';
+    s.rows.forEach(function(r,ri){
+      h+='<tr>'+c.cols.map(function(col,ci){return '<td><input data-r="'+ri+'" data-c="'+ci+'" class="'+(col.t==='n'?'num':'')+'" value="'+esc(r[ci]==null?'':r[ci])+'"'+(col.t==='n'?' inputmode="decimal"':'')+' aria-label="'+esc(s.head[ci])+', fila '+(ri+1)+'"></td>'}).join('')+'<td class="xc"><button type="button" class="x" data-del="'+ri+'" aria-label="Borrar fila '+(ri+1)+'">✕</button></td></tr>';
+    });
+    $('dt').innerHTML=h+'</tbody></table>';
+  }
+  function select(id,scroll){
+    curId=id;group=byId[id].g;renderTabs();renderGallery();renderPlate();renderEditor();paintMain();
+    if(scroll){try{$('plate').scrollIntoView({behavior:reduce?'auto':'smooth',block:'start'})}catch(e){}}
+  }
+  var timer;
+  function schedule(){clearTimeout(timer);var id=curId;timer=setTimeout(function(){save(id);paintMain();paintThumb(id)},220)}
+  function blank(){return byId[curId].cols.map(function(){return ''})}
+
+  /* ---------- eventos ---------- */
+  $('tabs').addEventListener('click',function(e){
+    var b=e.target.closest('[data-g]');if(!b)return;
+    var gid=b.dataset.g;if(gid===group)return;
+    var first=CH.filter(function(c){return c.g===gid})[0];select(first.id,false);
+  });
+  $('tiles').addEventListener('click',function(e){var b=e.target.closest('[data-id]');if(b)select(b.dataset.id,true)});
+  $('dt').addEventListener('input',function(e){
+    var t=e.target,s=S[curId];
+    if(t.dataset.h!=null){s.head[+t.dataset.h]=t.value}
+    else if(t.dataset.r!=null){s.rows[+t.dataset.r][+t.dataset.c]=t.value}
+    schedule();
+  });
+  $('dt').addEventListener('click',function(e){
+    var b=e.target.closest('[data-del]');if(!b)return;
+    var s=S[curId],i=+b.dataset.del;
+    if(s.rows.length>1)s.rows.splice(i,1);else s.rows[0]=blank();
+    renderEditor();schedule();
+  });
+  $('dt').addEventListener('paste',function(e){
+    var t=e.target;if(!t.matches||!t.matches('input[data-r]'))return;
+    var txt=(e.clipboardData||window.clipboardData).getData('text');
+    if(!/[\t\n]/.test(txt.trim()))return;
+    e.preventDefault();
+    var lines=txt.replace(/\r/g,'').replace(/\n+$/,'').split('\n').map(function(l){return l.split('\t')});
+    var r0=+t.dataset.r,c0=+t.dataset.c,s=S[curId],nc=byId[curId].cols.length;
+    lines.forEach(function(ln,i){
+      while(s.rows.length<=r0+i)s.rows.push(blank());
+      ln.forEach(function(v,j){if(c0+j<nc)s.rows[r0+i][c0+j]=v.trim()});
+    });
+    renderEditor();schedule();
+  });
+  $('addrow').onclick=function(){
+    S[curId].rows.push(blank());renderEditor();
+    var ins=$('dt').querySelectorAll('input[data-r="'+(S[curId].rows.length-1)+'"]');
+    if(ins.length){ins[0].focus();$('dt').scrollTop=$('dt').scrollHeight}
+  };
+  $('reset').onclick=function(){
+    var c=byId[curId];
+    S[curId]={head:c.cols.map(function(x){return x.h}),rows:c.rows.map(function(r){return c.cols.map(function(_,i){return r[i]==null?'':String(r[i])})})};
+    try{localStorage.removeItem('gu1:'+curId)}catch(e){}
+    renderEditor();paintMain();paintThumb(curId);
+  };
+
+  var lastW=0,rt;
+  if(window.ResizeObserver)new ResizeObserver(function(){var w=$('canvas').clientWidth;if(w===lastW)return;lastW=w;clearTimeout(rt);rt=setTimeout(paintMain,150)}).observe($('canvas'));
+  var redraw=function(){paintMain();if(galleryGroup){CH.filter(function(c){return c.g===galleryGroup}).forEach(function(c){paintThumb(c.id)})}};
+  if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener('change',redraw);
+  new MutationObserver(redraw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+  /* mapa del mundo (para el coroplético): se carga aparte y se repinta al llegar */
+  function refreshMaps(){if(curId==='choro')paintMain();if(galleryGroup==='vis')paintThumb('choro')}
+  var ms=document.createElement('script');
+  ms.src='https://cdn.jsdelivr.net/npm/echarts@4.9.0/map/js/world.js';
+  ms.onload=function(){refreshMaps()};
+  ms.onerror=function(){mapFailed=true;refreshMaps()};
+  document.head.appendChild(ms);
+
+  select('line',false);
+}
+</script>
