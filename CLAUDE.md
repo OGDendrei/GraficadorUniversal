@@ -22,7 +22,7 @@ Estas normas se cumplen siempre, en cualquier cambio.
 
 ## Estructura
 - `index.html`, `css/estilos.css`
-- `js/app.js` (galería, pestañas, lámina), `js/editor.js` (tabla), `js/tema.js` (colores),
+- `js/app.js` (galería, pestañas, lámina), `js/editor.js` (tabla), `js/exportar.js` (descargar PNG), `js/tema.js` (colores),
   `js/util.js` (utilidades), `js/graficos/<id>.js` (uno por gráfico) y `js/graficos/index.js` (registro).
 - `pruebas/` contiene la prueba con navegador real (Playwright).
 

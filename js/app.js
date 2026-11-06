@@ -3,6 +3,7 @@
 import { $, esc, msg, reduce, finalize, miniify } from './util.js';
 import { leerTema, alCambiarTema } from './tema.js';
 import { iniciarEditor } from './editor.js';
+import { generarPNG, bajar } from './exportar.js';
 import { GRAFICOS, GRUPOS } from './graficos/index.js';
 
 const MAPA_MUNDO = 'vendor/world-echarts-4.9.0.js';
@@ -38,7 +39,7 @@ function arrancar() {
   /* ---------- pintar un gráfico en un elemento ----------
      opt() puede devolver: null (faltan datos), { aviso: 'texto' } (datos no válidos para este gráfico)
      o { pending: true } (el mapa del mundo aún no ha llegado). */
-  function paint(el, c, s, T, mini) {
+  function paint(el, c, s, T, mini, sinAnimacion) {
     const old = window.echarts && echarts.getInstanceByDom(el); if (old) old.dispose();
     el.innerHTML = ''; el.removeAttribute('title');
     try {
@@ -53,6 +54,7 @@ function arrancar() {
         if (!el.clientHeight) io.height = el.id === 'canvas' ? 340 : 92;
         const inst = echarts.init(el, null, io);
         const fo = finalize(o, T);
+        if (sinAnimacion) fo.animation = false;
         inst.setOption(mini ? miniify(fo) : fo, true);
       } else {
         c.draw(el, rows, s.head, T, mini);
@@ -105,10 +107,24 @@ function arrancar() {
   });
 
   function select(id, scroll) {
-    curId = id; group = byId[id].grupo;
+    curId = id; group = byId[id].grupo; $('png-estado').hidden = true;
     renderTabs(); renderGallery(); renderPlate(); editor.pintar(); paintMain();
     if (scroll) { try { $('plate').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); } catch (e) { /* navegador antiguo */ } }
   }
+
+  /* ---------- descargar PNG ----------
+     En móvil la imagen se dibuja con al menos 640 px de ancho para que no salgan etiquetas cortadas. */
+  $('png').onclick = async () => {
+    const b = $('png'), estado = $('png-estado'), c = byId[curId], s = S[curId], T = leerTema(), cv = $('canvas');
+    b.disabled = true; b.textContent = 'Generando…'; estado.hidden = true;
+    try {
+      bajar(await generarPNG({ def: c, T, ancho: Math.max(cv.clientWidth, 640), alto: Math.max(cv.clientHeight, 420), dibujar: el => paint(el, c, s, T, false, true) }));
+    } catch (e) {
+      estado.textContent = 'No se ha podido crear la imagen. [' + c.id + ': ' + String((e && e.message) || e).slice(0, 160) + ']';
+      estado.hidden = false;
+      if (window.console) console.warn('png', e);
+    } finally { b.disabled = false; b.textContent = 'Descargar PNG'; }
+  };
 
   /* ---------- eventos ---------- */
   $('tabs').addEventListener('click', e => {

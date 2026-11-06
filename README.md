@@ -2,7 +2,8 @@
 
 Página web con 30 tipos de gráfico (10 populares, 10 vistosos y 10 raros). Cada uno tiene
 una miniatura en vivo, una curiosidad histórica y una tabla de datos que puedes editar
-(también pegando celdas de una hoja de cálculo). Lo que escribes se guarda solo en tu navegador.
+(también pegando celdas de una hoja de cálculo) y
+se puede descargar como imagen PNG. Lo que escribes se guarda solo en tu navegador.
 
 Es una web estática: no hay que compilar nada ni se carga nada de internet.
 Las librerías (ECharts, d3 y el mapa del mundo) están copiadas en `vendor/`.
@@ -34,6 +35,7 @@ Para publicarla en GitHub Pages: Ajustes → Pages → rama `main`, carpeta raí
 - `index.html`, `css/estilos.css`
 - `js/app.js`: galería, pestañas y lámina del gráfico
 - `js/editor.js`: tabla de datos
+- `js/exportar.js`: botón «Descargar PNG»
 - `js/tema.js`: colores claro/oscuro
 - `js/util.js`: utilidades comunes
 - `js/graficos/`: un archivo por gráfico y `index.js` que los registra
@@ -44,7 +46,8 @@ Para publicarla en GitHub Pages: Ajustes → Pages → rama `main`, carpeta raí
 ## Prueba automática
 
 Abre la página en un navegador real sin ventana y recorre los 30 gráficos en móvil y escritorio,
-en claro y oscuro, con datos normales y con datos raros; prueba la tabla y compara con el prototipo.
+en claro y oscuro, con datos normales y con datos raros; prueba la tabla, comprueba que
+«Descargar PNG» da una imagen válida en los 30 gráficos y compara con el prototipo.
 
 ```bash
 npm i -D playwright && npx playwright install chromium

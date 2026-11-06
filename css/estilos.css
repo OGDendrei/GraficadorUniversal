@@ -79,6 +79,8 @@ h2{font-size:24px; line-height:1.15; font-weight:700; letter-spacing:-.01em; mar
 .btn{border:1px solid var(--ring); background:var(--surface); color:var(--ink); border-radius:8px; padding:6px 12px; font:inherit; font-size:13px; cursor:pointer}
 .btn:hover{background:var(--accent-wash)}
 .hint{font-size:12.5px; color:var(--ink2); margin:8px 0 0}
+.aviso{margin:0 0 8px}
+.btn:disabled{opacity:.6; cursor:progress}
 .dt{max-height:320px; overflow:auto; border:1px solid var(--grid); border-radius:8px}
 table{border-collapse:collapse; width:100%; font-size:14px}
 th{position:sticky; top:0; background:var(--surface); z-index:1; text-align:left; border-bottom:1px solid var(--grid); font-weight:600; color:var(--ink2); padding:0}

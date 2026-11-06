@@ -158,6 +158,45 @@ const ESPERADO = {
   'choro/una-fila': e => (e.dibujado && e.paisesSinDatos > 150) || 'los países sin datos deberían quedar en gris (hay ' + e.paisesSinDatos + ')'
 };
 
+/* Pulsa «Descargar PNG» y comprueba la imagen: nombre, PNG válido, buena resolución,
+   fondo sólido del tema visible, título dibujado y gráfico con contenido. */
+const slug = n => 'grafico-' + n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '.png';
+const pngs = { ok: 0, mal: 0 };
+async function probarPNG(page, c, cfg, donde) {
+  const mal = que => { pngs.mal++; fallo(donde, 'PNG: ' + que); };
+  const descarga = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.click('#png')]).then(r => r[0]).catch(() => null);
+  if (!descarga) return mal('el botón no descarga nada. ' + (await page.locator('#png-estado').textContent()));
+  if (descarga.suggestedFilename() !== slug(c.nombre)) mal('el archivo se llama «' + descarga.suggestedFilename() + '» y debería ser «' + slug(c.nombre) + '»');
+  const buf = fs.readFileSync(await descarga.path());
+  if (buf.length < 30 || buf.toString('latin1', 1, 4) !== 'PNG') return mal('el archivo no es un PNG');
+  const ancho = buf.readUInt32BE(16), alto = buf.readUInt32BE(20);
+  if (ancho < 1200) mal('poca resolución: ' + ancho + ' px de ancho');
+  const fondo = await page.evaluate(() => getComputedStyle(document.querySelector('#plate')).backgroundColor);
+  const r = await page.evaluate(async ({ b64, fondo }) => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+    const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+    const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0);
+    const d = ctx.getImageData(0, 0, cv.width, cv.height).data;
+    const f = fondo.match(/\d+/g).map(Number);
+    const px = i => [d[i], d[i + 1], d[i + 2], d[i + 3]];
+    const distinto = i => Math.abs(d[i] - f[0]) + Math.abs(d[i + 1] - f[1]) + Math.abs(d[i + 2] - f[2]) > 30;
+    let transparentes = 0, titulo = 0, grafico = 0;
+    const bandaTitulo = Math.round(cv.height * 0.08), escala = cv.width / 400;
+    for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) {
+      const i = (y * cv.width + x) * 4;
+      if (d[i + 3] < 255) transparentes++;
+      if (distinto(i)) { if (y < bandaTitulo) titulo++; else grafico++; }
+    }
+    return { esquina: px(0), transparentes, titulo, grafico, total: cv.width * cv.height, f };
+  }, { b64: buf.toString('base64'), fondo });
+  if (r.transparentes) mal(r.transparentes + ' píxeles transparentes (el fondo debe ser sólido)');
+  if (r.esquina.slice(0, 3).join() !== r.f.join()) mal('el fondo es rgb(' + r.esquina.slice(0, 3) + ') y debería ser ' + fondo + ' (tema ' + cfg.tema + ')');
+  if (r.titulo < 200) mal('no se ve el título');
+  if (r.grafico < r.total * 0.004) mal('la imagen casi no tiene gráfico (' + r.grafico + ' píxeles de dibujo)');
+  if (CAPTURAS) fs.writeFileSync(path.join(DIR_CAPTURAS, 'png_' + cfg.nombre + '_' + c.id + '.png'), buf);
+  pngs.ok++;
+}
+
 const resumen = {};   /* resumen[tipoDatos][id] = 'ok' | 'aviso: …' | 'ERROR: …' */
 const anota = (tipo, id, cfg, txt) => { resumen[tipo] ??= {}; resumen[tipo][id] ??= {}; resumen[tipo][id][cfg] = txt; };
 
@@ -197,6 +236,7 @@ for (const cfg of CONFIGS) {
       const th = e.thumbs.find(t => t.id === c.id);
       if (!th || th.vacio) fallo(donde, 'miniatura vacía');
       else if (/No se ha podido/.test(th.msg)) fallo(donde, 'miniatura con error: ' + (th.titulo || th.msg));
+      if (tipo === 'ejemplo') await probarPNG(page, c, cfg, donde);
       if (CAPTURAS && (tipo === 'ejemplo' || cfg.nombre === 'escritorio-claro')) {
         await page.locator('#plate').screenshot({ path: path.join(DIR_CAPTURAS, cfg.nombre + '_' + tipo + '_' + c.id + '.png') });
       }
@@ -315,6 +355,7 @@ for (const tipo of Object.keys(resumen)) {
   }
   if (tipo === 'ejemplo' && Object.values(resumen[tipo]).every(p => Object.values(p).every(v => v === 'ok'))) console.log('  los 30 se dibujan bien');
 }
+console.log('\nDescargar PNG: ' + pngs.ok + ' imágenes comprobadas' + (pngs.mal ? ', ' + pngs.mal + ' problemas' : ', todas bien') + ' (30 gráficos × 4 configuraciones)');
 console.log('\nParidad con el prototipo: ' + (paridad.length ? paridad.length + ' diferencias' : 'idéntico en los 30 gráficos (escritorio claro y oscuro, y móvil claro)'));
 if (fallos.length) {
   console.log('\nFALLOS (' + fallos.length + '):');
