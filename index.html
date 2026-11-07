@@ -19,6 +19,11 @@
     <p class="sub">30 formas de ver unos números. Elige una, cambia los datos de la tabla y mira cómo se redibuja.</p>
   </header>
 
+  <div class="avisos" id="avisos" role="alert" hidden>
+    <ul id="avisos-lista"></ul>
+    <button type="button" class="btn" id="avisos-cerrar">Entendido</button>
+  </div>
+
   <div class="grid">
     <aside class="left">
       <div class="tabs" id="tabs"></div>
@@ -40,6 +45,25 @@
             </div>
           </div>
           <p class="hint aviso" id="png-estado" role="status" hidden></p>
+          <div class="juegos" id="juegos">
+            <label class="jl" for="juego">Juego de datos</label>
+            <select id="juego" class="jsel"></select>
+            <div class="btns">
+              <button type="button" class="btn" id="j-nuevo">Nuevo</button>
+              <button type="button" class="btn" id="j-duplicar">Duplicar</button>
+              <button type="button" class="btn" id="j-renombrar">Renombrar</button>
+              <button type="button" class="btn" id="j-borrar">Borrar</button>
+            </div>
+          </div>
+          <form class="jform" id="j-form" hidden novalidate>
+            <label for="j-nombre" id="j-titulo">Nombre del juego</label>
+            <div class="jfila">
+              <input id="j-nombre" maxlength="60" autocomplete="off" enterkeyhint="done">
+              <button type="submit" class="btn">Aceptar</button>
+              <button type="button" class="btn" id="j-cancelar">Cancelar</button>
+            </div>
+            <p class="jerror" id="j-error" role="alert" hidden></p>
+          </form>
           <div class="dt" id="dt"></div>
           <p class="hint" id="note"></p>
           <p class="hint">Puedes pegar celdas copiadas de una hoja de cálculo. Los nombres de columna con subrayado se pueden cambiar.</p>

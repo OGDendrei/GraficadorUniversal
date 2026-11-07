@@ -4,10 +4,10 @@ import { $, esc, msg, reduce, finalize, miniify } from './util.js';
 import { leerTema, alCambiarTema } from './tema.js';
 import { iniciarEditor } from './editor.js';
 import { generarPNG, bajar } from './exportar.js';
+import { cargar, guardar, juegoEjemplo, juegoVacio, errorNombre, nombreCopia } from './almacen.js';
 import { GRAFICOS, GRUPOS } from './graficos/index.js';
 
 const MAPA_MUNDO = 'vendor/world-echarts-4.9.0.js';
-const CLAVE = id => 'gu1:' + id;   /* clave de localStorage de cada gráfico */
 
 /* Sin librerías no se puede dibujar nada: se avisa y se para. */
 const faltan = [!window.echarts && 'ECharts (vendor/echarts-5.5.1.min.js)', !window.d3 && 'd3 (vendor/d3-7.8.5.min.js)'].filter(Boolean);
@@ -22,19 +22,28 @@ function arrancar() {
   GRAFICOS.forEach(c => { byId[c.id] = c; });
   let mapaFallo = '';   /* motivo si el mapa del mundo no se pudo cargar */
 
-  /* ---------- estado: datos de cada gráfico ---------- */
-  const ejemplo = c => ({ head: c.columnas.map(x => x.nombre), rows: c.filas.map(r => c.columnas.map((_, i) => r[i] == null ? '' : String(r[i]))) });
-  const S = {};
+  /* ---------- avisos generales (datos dañados, almacenamiento lleno…) ---------- */
+  const avisos = new Set();
+  function avisar(t) {
+    if (!t || avisos.has(t)) return;
+    avisos.add(t);
+    $('avisos-lista').innerHTML = [...avisos].map(a => '<li>' + esc(a) + '</li>').join('');
+    $('avisos').hidden = false;
+  }
+  $('avisos-cerrar').onclick = () => { avisos.clear(); $('avisos').hidden = true; };
+
+  /* ---------- estado: juegos de datos de cada gráfico ----------
+     R[id] = { juegos: [{ nombre, head, rows }], activo: índice }. Se dibuja siempre el juego activo. */
+  const R = {};
   GRAFICOS.forEach(c => {
-    let st = ejemplo(c);
-    try {
-      const sv = JSON.parse(localStorage.getItem(CLAVE(c.id)) || 'null');
-      if (sv && Array.isArray(sv.head) && Array.isArray(sv.rows) && sv.head.length === c.columnas.length && sv.rows.length && sv.rows.every(Array.isArray)) st = { head: sv.head, rows: sv.rows };
-    } catch (e) { /* datos guardados ilegibles: se usa el ejemplo */ }
-    S[c.id] = st;
+    let r;
+    try { const x = cargar(c); r = x.registro; x.avisos.forEach(avisar); }
+    catch (e) { r = { juegos: [juegoEjemplo(c)], activo: 0 }; avisar('No se han podido leer los datos guardados de «' + c.nombre + '» [' + e.message + ']. Se muestran los de ejemplo.'); }
+    R[c.id] = r;
   });
+  const activo = id => R[id].juegos[R[id].activo];
   let curId = 'line', group = 'populares', galleryGroup = null;
-  const save = id => { try { localStorage.setItem(CLAVE(id), JSON.stringify(S[id])); } catch (e) { /* sin almacenamiento: no se guarda */ } };
+  const save = id => avisar(guardar(id, R[id]));
 
   /* ---------- pintar un gráfico en un elemento ----------
      opt() puede devolver: null (faltan datos), { aviso: 'texto' } (datos no válidos para este gráfico)
@@ -68,8 +77,8 @@ function arrancar() {
       if (window.console) console.warn(c.id, e);
     }
   }
-  const paintMain = () => paint($('canvas'), byId[curId], S[curId], leerTema(), false);
-  const paintThumb = id => { const el = $('th-' + id); if (el) paint(el, byId[id], S[id], leerTema(), true); };
+  const paintMain = () => paint($('canvas'), byId[curId], activo(curId), leerTema(), false);
+  const paintThumb = id => { const el = $('th-' + id); if (el) paint(el, byId[id], activo(id), leerTema(), true); };
 
   /* ---------- partes de la página ---------- */
   function renderTabs() {
@@ -94,31 +103,87 @@ function arrancar() {
   }
 
   let timer;
-  function schedule() { clearTimeout(timer); const id = curId; timer = setTimeout(() => { save(id); paintMain(); paintThumb(id); }, 220); }
+  let pendiente = null;   /* gráfico con cambios aún sin guardar */
+  function schedule() { clearTimeout(timer); const id = pendiente = curId; timer = setTimeout(() => { pendiente = null; save(id); paintMain(); paintThumb(id); }, 220); }
+  /* Guarda ya lo pendiente (antes de cambiar de juego, por ejemplo). */
+  function flush() { clearTimeout(timer); if (pendiente) { const id = pendiente; pendiente = null; save(id); paintThumb(id); } }
 
   const editor = iniciarEditor({
-    actual: () => ({ def: byId[curId], estado: S[curId] }),
+    actual: () => ({ def: byId[curId], estado: activo(curId) }),
     alCambiar: schedule,
     alRestaurar: () => {
-      S[curId] = ejemplo(byId[curId]);
-      try { localStorage.removeItem(CLAVE(curId)); } catch (e) { /* nada que borrar */ }
-      clearTimeout(timer); paintMain(); paintThumb(curId);
+      const j = activo(curId);
+      if (!confirm('¿Restaurar los datos de ejemplo en el juego «' + j.nombre + '»? Se perderán los cambios de ese juego.')) return;
+      flush();
+      const e = juegoEjemplo(byId[curId], j.nombre);
+      j.head = e.head; j.rows = e.rows;
+      save(curId); paintMain(); paintThumb(curId);
     }
   });
 
+  /* ---------- juegos de datos: selector, Nuevo, Duplicar, Renombrar y Borrar ---------- */
+  function renderJuegos() {
+    const r = R[curId];
+    $('juego').innerHTML = r.juegos.map((j, i) => '<option value="' + i + '"' + (i === r.activo ? ' selected' : '') + '>' + esc(j.nombre) + '</option>').join('');
+    $('j-borrar').disabled = r.juegos.length < 2;
+    $('j-borrar').title = r.juegos.length < 2 ? 'No se puede borrar el único juego que queda' : '';
+  }
+  /* Tras cambiar de juego: guardar, y repintar selector, tabla, lámina y miniatura. */
+  function juegoCambiado() { save(curId); cerrarForm(); renderJuegos(); editor.pintar(); paintMain(); paintThumb(curId); }
+
+  $('juego').addEventListener('change', e => { flush(); R[curId].activo = +e.target.value; juegoCambiado(); });
+
+  let modo = null;   /* 'nuevo' | 'duplicar' | 'renombrar' mientras el formulario de nombre está abierto */
+  function abrirForm(m, titulo, valor) {
+    flush(); modo = m;
+    $('j-titulo').textContent = titulo;
+    $('j-nombre').value = valor;
+    $('j-error').hidden = true;
+    $('j-form').hidden = false;
+    $('j-nombre').focus(); $('j-nombre').select();
+  }
+  function cerrarForm() { modo = null; $('j-form').hidden = true; $('j-error').hidden = true; }
+  $('j-nuevo').onclick = () => abrirForm('nuevo', 'Nombre del juego nuevo (vacío, con las columnas de este gráfico)', '');
+  $('j-duplicar').onclick = () => abrirForm('duplicar', 'Nombre de la copia de «' + activo(curId).nombre + '»', nombreCopia(R[curId], activo(curId).nombre));
+  $('j-renombrar').onclick = () => abrirForm('renombrar', 'Nuevo nombre para «' + activo(curId).nombre + '»', activo(curId).nombre);
+  $('j-cancelar').onclick = cerrarForm;
+  $('j-form').addEventListener('keydown', e => { if (e.key === 'Escape') cerrarForm(); });
+  $('j-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const r = R[curId], nombre = $('j-nombre').value.trim();
+    const error = errorNombre(r, nombre, modo === 'renombrar' ? r.activo : -1);
+    if (error) { $('j-error').textContent = error; $('j-error').hidden = false; $('j-nombre').focus(); return; }
+    const a = activo(curId);
+    if (modo === 'renombrar') a.nombre = nombre;
+    else {
+      r.juegos.push(modo === 'nuevo' ? juegoVacio(byId[curId], nombre) : { nombre, head: a.head.slice(), rows: a.rows.map(f => f.slice()) });
+      r.activo = r.juegos.length - 1;
+    }
+    juegoCambiado();
+  });
+  $('j-borrar').onclick = () => {
+    const r = R[curId];
+    if (r.juegos.length < 2) return;
+    if (!confirm('¿Borrar el juego «' + activo(curId).nombre + '»? Esta acción no se puede deshacer.')) return;
+    flush();
+    r.juegos.splice(r.activo, 1);
+    r.activo = Math.max(0, r.activo - 1);
+    juegoCambiado();
+  };
+
   function select(id, scroll) {
     curId = id; group = byId[id].grupo; $('png-estado').hidden = true;
-    renderTabs(); renderGallery(); renderPlate(); editor.pintar(); paintMain();
+    flush(); cerrarForm(); renderTabs(); renderGallery(); renderPlate(); renderJuegos(); editor.pintar(); paintMain();
     if (scroll) { try { $('plate').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); } catch (e) { /* navegador antiguo */ } }
   }
 
   /* ---------- descargar PNG ----------
      En móvil la imagen se dibuja con al menos 640 px de ancho para que no salgan etiquetas cortadas. */
   $('png').onclick = async () => {
-    const b = $('png'), estado = $('png-estado'), c = byId[curId], s = S[curId], T = leerTema(), cv = $('canvas');
+    const b = $('png'), estado = $('png-estado'), c = byId[curId], s = activo(curId), T = leerTema(), cv = $('canvas');
     b.disabled = true; b.textContent = 'Generando…'; estado.hidden = true;
     try {
-      bajar(await generarPNG({ def: c, T, ancho: Math.max(cv.clientWidth, 640), alto: Math.max(cv.clientHeight, 420), dibujar: el => paint(el, c, s, T, false, true) }));
+      bajar(await generarPNG({ def: c, T, juego: s.nombre, ancho: Math.max(cv.clientWidth, 640), alto: Math.max(cv.clientHeight, 420), dibujar: el => paint(el, c, s, T, false, true) }));
     } catch (e) {
       estado.textContent = 'No se ha podido crear la imagen. [' + c.id + ': ' + String((e && e.message) || e).slice(0, 160) + ']';
       estado.hidden = false;

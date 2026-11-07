@@ -9,6 +9,8 @@
  *     celdas vacías y números negativos. Informa de lo que pasa en cada caso.
  *  5. Prueba la tabla: escribir, guardar, recargar, pegar desde hoja de cálculo,
  *     añadir y borrar filas y «Restaurar ejemplo».
+ *     Juegos de datos: crear, duplicar, renombrar, borrar, nombres no válidos, último juego,
+ *     juego activo al recargar, conversión del formato antiguo y almacenamiento dañado, lleno o bloqueado.
  *  6. Paridad: compara cada gráfico con el prototipo (prototipo/graficador.html).
  *
  * Uso:   node pruebas/recorrido.mjs            (resumen en pantalla)
@@ -69,6 +71,7 @@ async function nuevaPagina(cfg, { prototipo = false } = {}) {
   const ctx = await navegador.newContext({ viewport: cfg.viewport, isMobile: cfg.movil, hasTouch: cfg.movil, deviceScaleFactor: 1, colorScheme: cfg.tema, reducedMotion: 'reduce' });
   const page = await ctx.newPage();
   page.errores = []; page.externas = [];
+  page.setDefaultTimeout(5000);
   page.on('pageerror', e => page.errores.push('error JS: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') page.errores.push('consola: ' + m.text()); });
   await ctx.route('**/*', ruta => {
@@ -249,6 +252,8 @@ for (const cfg of CONFIGS) {
 }
 
 /* ---------- 5. la tabla de datos ---------- */
+/* Juego activo guardado en localStorage para un gráfico. */
+const juegoGuardado = (page, id) => page.evaluate(id => { const o = JSON.parse(localStorage.getItem('gu2:' + id) || 'null'); return o && o.juegos.find(j => j.nombre === o.activo); }, id);
 {
   const cfg = CONFIGS[2];
   const page = await nuevaPagina(cfg);
@@ -263,7 +268,7 @@ for (const cfg of CONFIGS) {
   const celda = page.locator('#dt input[data-r="0"][data-c="1"]');
   await celda.fill('40');
   await page.waitForTimeout(400);
-  const guardado = await page.evaluate(() => JSON.parse(localStorage.getItem('gu1:line') || 'null'));
+  const guardado = await juegoGuardado(page, 'line');
   comprobar(guardado && guardado.rows[0][1] === '40', 'escribir una celda no se guarda en localStorage');
   await page.reload(); await esperarArranque(page);
   comprobar(await page.locator('#dt input[data-r="0"][data-c="1"]').inputValue() === '40', 'al recargar no se recupera el valor guardado');
@@ -271,7 +276,7 @@ for (const cfg of CONFIGS) {
   /* Cambiar el nombre de una columna. */
   await page.locator('#dt input[data-h="1"]').fill('Grados');
   await page.waitForTimeout(400);
-  comprobar(await page.evaluate(() => JSON.parse(localStorage.getItem('gu1:line')).head[1] === 'Grados'), 'el nombre de columna no se guarda');
+  comprobar((await juegoGuardado(page, 'line'))?.head[1] === 'Grados', 'el nombre de columna no se guarda');
 
   /* Pegar 3 filas × 2 columnas desde una hoja de cálculo al final de la tabla. */
   const antes = await filas();
@@ -291,10 +296,15 @@ for (const cfg of CONFIGS) {
   await page.click('#dt [data-del="0"]');
   comprobar(await filas() === n0, 'borrar una fila no la quita');
 
-  /* Restaurar ejemplo. */
+  /* Restaurar ejemplo: pide confirmación; si se cancela no cambia nada. */
+  page.once('dialog', d => d.dismiss());
   await page.click('#reset');
   await page.waitForTimeout(300);
-  comprobar(await page.evaluate(() => localStorage.getItem('gu1:line')) === null, '«Restaurar ejemplo» no borra lo guardado');
+  comprobar(await page.locator('#dt input[data-h="1"]').inputValue() === 'Grados', '«Restaurar ejemplo» cancelado no debería cambiar nada');
+  page.once('dialog', d => d.accept());
+  await page.click('#reset');
+  await page.waitForTimeout(300);
+  comprobar((await juegoGuardado(page, 'line'))?.rows[0][1] === '8', '«Restaurar ejemplo» no guarda los datos de ejemplo');
   comprobar(await page.locator('#dt input[data-r="0"][data-c="1"]').inputValue() === '8', '«Restaurar ejemplo» no devuelve los datos de ejemplo');
   comprobar(await page.locator('#dt input[data-h="1"]').inputValue() === 'Temperatura (°C)', '«Restaurar ejemplo» no devuelve el nombre de columna');
 
@@ -305,6 +315,214 @@ for (const cfg of CONFIGS) {
 
   page.errores.forEach(x => fallo('tabla', x));
   await page.context().close();
+}
+
+/* ---------- 5b. juegos de datos ---------- */
+const opciones = page => page.$$eval('#juego option', os => os.map(o => o.textContent));
+const activoSel = page => page.$eval('#juego', s => s.selectedOptions[0]?.textContent);
+/* Pulsa un botón del juego, escribe el nombre y acepta. Devuelve el error mostrado ('' si no hay). */
+async function formNombre(page, boton, nombre) {
+  await page.click(boton);
+  if (nombre != null) await page.fill('#j-nombre', nombre);
+  await page.click('#j-form button[type="submit"]');
+  await page.waitForTimeout(100);
+  return (await page.locator('#j-error').isVisible()) ? await page.locator('#j-error').textContent() : '';
+}
+for (const cfg of [CONFIGS[2], CONFIGS[1]]) {
+  const page = await nuevaPagina(cfg);
+  const donde = 'juegos ' + cfg.nombre;
+  const comprobar = (cond, que) => { if (!cond) fallo(donde, que); };
+  try {
+  await page.goto(BASE + '/index.html'); await esperarArranque(page);
+  await page.evaluate(() => localStorage.clear());
+  await page.reload(); await esperarArranque(page);
+
+  /* Al principio: un solo juego «Ejemplo» y no se puede borrar. */
+  comprobar(JSON.stringify(await opciones(page)) === '["Ejemplo"]', 'al empezar debería haber solo «Ejemplo» y hay ' + await opciones(page));
+  comprobar(await page.locator('#j-borrar').isDisabled(), '«Borrar» debería estar desactivado con un solo juego');
+  await page.locator('#j-borrar').evaluate(b => { b.disabled = false; b.click(); b.disabled = true; });   /* aunque se fuerce */
+  comprobar((await opciones(page)).length === 1, 'se ha podido borrar el último juego');
+
+  /* Los botones caben (sobre todo a 390 px). */
+  const fuera = await page.evaluate(() => [...document.querySelectorAll('#juegos select, #juegos button, .edh button')].filter(b => b.getBoundingClientRect().right > document.querySelector('#plate').getBoundingClientRect().right + 0.5).map(b => b.textContent || b.id));
+  comprobar(!fuera.length, 'se salen de la lámina: ' + fuera.join(', '));
+  const cortados = await page.evaluate(() => [...document.querySelectorAll('#juegos button, .edh button')].filter(b => b.scrollWidth > b.clientWidth + 1).map(b => b.textContent));
+  comprobar(!cortados.length, 'el texto no cabe en los botones: ' + cortados.join(', '));
+
+  /* Nuevo: rechaza vacío y repetido (sin importar mayúsculas ni espacios); crea un juego vacío. */
+  let err = await formNombre(page, '#j-nuevo', '   ');
+  comprobar(/vacío/.test(err), 'un nombre vacío debería rechazarse (error: «' + err + '»)');
+  err = await formNombre(page, '#j-nuevo', ' ejemplo ');
+  comprobar(/Ya hay/.test(err), 'un nombre repetido debería rechazarse (error: «' + err + '»)');
+  comprobar((await opciones(page)).length === 1, 'un nombre rechazado no debería crear juego');
+  err = await formNombre(page, '#j-nuevo', 'Enero');
+  comprobar(!err && await activoSel(page) === 'Enero', '«Nuevo» no crea y activa «Enero» (' + err + ')');
+  comprobar(await page.locator('#dt tbody tr').count() === 1 && await page.locator('#dt input[data-r="0"][data-c="1"]').inputValue() === '', 'el juego nuevo debería estar vacío');
+  comprobar(await page.locator('#dt input[data-h="1"]').inputValue() === 'Temperatura (°C)', 'el juego nuevo debería tener las columnas del gráfico');
+  comprobar(await page.locator('#canvas .msg').count() === 1 && await page.locator('#th-line .msg').count() === 1, 'lámina y miniatura deberían usar el juego vacío');
+  await page.locator('#dt input[data-r="0"][data-c="0"]').fill('L');
+  await page.locator('#dt input[data-r="0"][data-c="1"]').fill('5');
+  await page.waitForTimeout(400);
+
+  /* Duplicar: propone «Ejemplo (copia)» y copia los datos. */
+  await page.selectOption('#juego', { label: 'Ejemplo' });
+  comprobar(await page.locator('#dt tbody tr').count() === 12 && await page.locator('#th-line svg').count() === 1, 'al volver a «Ejemplo» no vuelven sus datos');
+  await page.click('#j-duplicar');
+  comprobar(await page.inputValue('#j-nombre') === 'Ejemplo (copia)', 'Duplicar debería proponer «Ejemplo (copia)» y propone «' + await page.inputValue('#j-nombre') + '»');
+  await page.click('#j-form button[type="submit"]'); await page.waitForTimeout(100);
+  comprobar(await activoSel(page) === 'Ejemplo (copia)' && await page.locator('#dt tbody tr').count() === 12, '«Duplicar» no crea la copia con los datos');
+  await page.selectOption('#juego', { label: 'Ejemplo' });
+  await page.click('#j-duplicar');
+  comprobar(await page.inputValue('#j-nombre') === 'Ejemplo (copia 2)', 'la segunda copia debería proponer «Ejemplo (copia 2)»');
+  await page.click('#j-cancelar');
+  comprobar(await page.locator('#j-form').isHidden() && (await opciones(page)).length === 3, '«Cancelar» no cierra el formulario sin crear nada');
+
+  /* Renombrar. */
+  await page.selectOption('#juego', { label: 'Ejemplo (copia)' });
+  err = await formNombre(page, '#j-renombrar', 'ENERO');
+  comprobar(/Ya hay/.test(err), 'renombrar a un nombre que ya existe debería rechazarse');
+  err = await formNombre(page, '#j-renombrar', '');
+  comprobar(/vacío/.test(err), 'renombrar a vacío debería rechazarse');
+  await page.click('#j-cancelar');
+  err = await formNombre(page, '#j-renombrar', null);   /* su mismo nombre vale */
+  comprobar(!err, 'renombrar con el mismo nombre debería valer (' + err + ')');
+  err = await formNombre(page, '#j-renombrar', 'Febrero');
+  comprobar(!err && JSON.stringify(await opciones(page)) === '["Ejemplo","Enero","Febrero"]', '«Renombrar» no cambia el nombre: ' + await opciones(page));
+  await page.locator('#dt input[data-r="0"][data-c="1"]').fill('77');
+  await page.waitForTimeout(400);
+
+  /* Restaurar ejemplo solo afecta al juego activo. */
+  await page.selectOption('#juego', { label: 'Enero' });
+  page.once('dialog', d => d.accept());
+  await page.click('#reset'); await page.waitForTimeout(300);
+  comprobar(await page.locator('#dt tbody tr').count() === 12 && await activoSel(page) === 'Enero', '«Restaurar ejemplo» no restaura el juego activo');
+  await page.selectOption('#juego', { label: 'Febrero' });
+  comprobar(await page.locator('#dt input[data-r="0"][data-c="1"]').inputValue() === '77', '«Restaurar ejemplo» ha tocado otro juego');
+
+  /* Al recargar se mantienen los juegos y el activo. */
+  await page.reload(); await esperarArranque(page);
+  comprobar(await activoSel(page) === 'Febrero' && (await opciones(page)).length === 3, 'al recargar no se mantiene el juego activo (sale «' + await activoSel(page) + '»)');
+  comprobar(await page.locator('#dt input[data-r="0"][data-c="1"]').inputValue() === '77', 'al recargar se pierden los datos del juego');
+
+  /* El PNG usa el juego activo (lleva su nombre en el archivo del gráfico y se genera bien). */
+  const png = await Promise.all([page.waitForEvent('download'), page.click('#png')]).then(r => r[0]).catch(() => null);
+  comprobar(png && png.suggestedFilename() === 'grafico-lineas.png', 'el PNG no se descarga con un juego propio');
+
+  /* Borrar: pide confirmación; al cancelar no borra. */
+  page.once('dialog', d => d.dismiss());
+  await page.click('#j-borrar');
+  comprobar((await opciones(page)).length === 3, 'Borrar cancelado no debería borrar');
+  page.once('dialog', d => d.accept());
+  await page.click('#j-borrar');
+  comprobar(JSON.stringify(await opciones(page)) === '["Ejemplo","Enero"]' && await activoSel(page) === 'Enero', 'Borrar no quita «Febrero»: ' + await opciones(page));
+  page.once('dialog', d => d.accept());
+  await page.click('#j-borrar');
+  comprobar(JSON.stringify(await opciones(page)) === '["Ejemplo"]' && await page.locator('#j-borrar').isDisabled(), 'tras borrar debería quedar solo «Ejemplo» y no poder borrarse');
+  await page.reload(); await esperarArranque(page);
+  comprobar(JSON.stringify(await opciones(page)) === '["Ejemplo"]', 'el borrado no se guarda');
+  comprobar(await page.locator('#avisos').isHidden(), 'aparece un aviso sin motivo');
+
+  } catch (e) { fallo(donde, 'la prueba se interrumpió: ' + String(e.message).split('\n')[0]); }
+
+  page.errores.forEach(x => fallo(donde, x));
+  await page.context().close();
+}
+
+/* ---------- 5c. formato antiguo y almacenamiento dañado o lleno ---------- */
+{
+  const cfg = CONFIGS[2];
+  const viejo = { head: ['Categoría', 'Mi serie', 'Otra', 'Serie 3'], rows: [['Pan', '3', '4', ''], ['Leche', '1,5', '2', ''], ['Huevos', '2', '', '']] };
+
+  /* a) Formato antiguo: pasa a «Mis datos» sin perder nada y se borra el antiguo solo si todo fue bien. */
+  {
+    const page = await nuevaPagina(cfg), donde = 'formato antiguo';
+    const comprobar = (cond, que) => { if (!cond) fallo(donde, que); };
+    try {
+    await page.goto(BASE + '/index.html'); await esperarArranque(page);
+    await page.evaluate(v => { localStorage.clear(); localStorage.setItem('gu1:bar', JSON.stringify(v)); }, viejo);
+    await page.reload(); await esperarArranque(page);
+    await page.click('#tiles [data-id="bar"]');
+    comprobar(JSON.stringify(await opciones(page)) === '["Ejemplo","Mis datos"]' && await activoSel(page) === 'Mis datos', 'no se crea el juego «Mis datos» activo: ' + await opciones(page));
+    const tabla = await page.$$eval('#dt tbody tr', trs => trs.map(tr => [...tr.querySelectorAll('input')].map(i => i.value)));
+    comprobar(JSON.stringify(tabla) === JSON.stringify(viejo.rows), 'los datos convertidos no coinciden: ' + JSON.stringify(tabla));
+    comprobar(await page.locator('#dt input[data-h="1"]').inputValue() === 'Mi serie', 'se pierde el nombre de columna antiguo');
+    const ls = await page.evaluate(() => ({ v1: localStorage.getItem('gu1:bar'), v2: JSON.parse(localStorage.getItem('gu2:bar') || 'null') }));
+    comprobar(ls.v1 === null, 'el dato antiguo debería borrarse tras convertirlo bien');
+    comprobar(ls.v2 && JSON.stringify(ls.v2.juegos.find(j => j.nombre === 'Mis datos')?.rows) === JSON.stringify(viejo.rows), 'el formato nuevo no guarda los datos convertidos');
+    comprobar(await page.locator('#avisos').isHidden(), 'la conversión correcta no debería mostrar avisos');
+    } catch (e) { fallo(donde, 'la prueba se interrumpió: ' + String(e.message).split('\n')[0]); }
+    page.errores.forEach(x => fallo(donde, x));
+    await page.context().close();
+  }
+
+  /* b) Formato antiguo con el almacenamiento lleno: se ven los datos, se avisa y NO se borra el antiguo. */
+  {
+    const page = await nuevaPagina(cfg), donde = 'formato antiguo con almacenamiento lleno';
+    const comprobar = (cond, que) => { if (!cond) fallo(donde, que); };
+    try {
+    await page.goto(BASE + '/index.html'); await esperarArranque(page);
+    await page.evaluate(v => { localStorage.clear(); localStorage.setItem('gu1:bar', JSON.stringify(v)); }, viejo);
+    await page.addInitScript(() => {
+      const orig = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) { if (String(k).startsWith('gu')) throw new DOMException('lleno', 'QuotaExceededError'); return orig.call(this, k, v); };
+    });
+    await page.reload(); await esperarArranque(page);
+    await page.click('#tiles [data-id="bar"]');
+    comprobar(await activoSel(page) === 'Mis datos' && await page.locator('#dt input[data-r="0"][data-c="0"]').inputValue() === 'Pan', 'con el almacenamiento lleno no se muestran los datos antiguos');
+    comprobar(await page.evaluate(() => localStorage.getItem('gu1:bar')) !== null, 'se ha borrado el dato antiguo sin poder convertirlo');
+    const aviso = await page.locator('#avisos').textContent();
+    comprobar(await page.locator('#avisos').isVisible() && /no se han borrado/.test(aviso) && /lleno/.test(aviso), 'falta un aviso claro: «' + aviso + '»');
+    /* Y la web sigue funcionando: se puede editar y se avisa de que no se guarda. */
+    await page.locator('#dt input[data-r="0"][data-c="1"]').fill('9'); await page.waitForTimeout(400);
+    comprobar(await page.locator('#canvas svg').count() === 1, 'con el almacenamiento lleno el gráfico deja de dibujarse');
+    } catch (e) { fallo(donde, 'la prueba se interrumpió: ' + String(e.message).split('\n')[0]); }
+    page.errores.forEach(x => fallo(donde, x));
+    await page.context().close();
+  }
+
+  /* c) Datos dañados (formato nuevo y antiguo): aviso, copia de seguridad y datos de ejemplo. */
+  {
+    const page = await nuevaPagina(cfg), donde = 'datos dañados';
+    const comprobar = (cond, que) => { if (!cond) fallo(donde, que); };
+    try {
+    await page.goto(BASE + '/index.html'); await esperarArranque(page);
+    await page.evaluate(() => {
+      localStorage.clear();
+      localStorage.setItem('gu2:pie', '{esto no es JSON');
+      localStorage.setItem('gu2:area', JSON.stringify({ v: 2, activo: 'X', juegos: [{ nombre: 'X', head: ['a'], rows: [['1']] }] }));
+      localStorage.setItem('gu1:hist', '[[[');
+      localStorage.setItem('gu2:line', 'null');
+    });
+    await page.reload(); await esperarArranque(page);
+    comprobar(await page.locator('#canvas svg').count() === 1, 'con datos dañados la página no dibuja');
+    const aviso = await page.locator('#avisos').textContent();
+    comprobar(['Sectores (quesitos)', 'Área', 'Histograma'].every(n => aviso.includes('«' + n + '»')) && /dañados/.test(aviso), 'el aviso no nombra los gráficos dañados: «' + aviso + '»');
+    const respaldos = await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('gu-respaldo:')).map(k => [k.split(':')[1], localStorage.getItem(k)]));
+    comprobar(respaldos.some(r => r[0] === 'pie' && r[1] === '{esto no es JSON') && respaldos.some(r => r[0] === 'hist' && r[1] === '[[['), 'no se han guardado copias de seguridad de los datos dañados');
+    await page.click('#tiles [data-id="pie"]');
+    comprobar(await activoSel(page) === 'Ejemplo' && await page.locator('#canvas svg').count() === 1, 'el gráfico dañado no vuelve a los datos de ejemplo');
+    await page.click('#avisos-cerrar');
+    comprobar(await page.locator('#avisos').isHidden(), '«Entendido» no cierra el aviso');
+    } catch (e) { fallo(donde, 'la prueba se interrumpió: ' + String(e.message).split('\n')[0]); }
+    page.errores.forEach(x => fallo(donde, x));
+    await page.context().close();
+  }
+
+  /* d) Navegador que no deja usar localStorage: la página funciona y avisa. */
+  {
+    const page = await nuevaPagina(cfg), donde = 'sin localStorage';
+    const comprobar = (cond, que) => { if (!cond) fallo(donde, que); };
+    try {
+    await page.addInitScript(() => { Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('bloqueado', 'SecurityError'); } }); });
+    await page.goto(BASE + '/index.html'); await esperarArranque(page);
+    comprobar(await page.locator('#canvas svg').count() === 1, 'sin localStorage no se dibuja');
+    comprobar(/no deja guardar/.test(await page.locator('#avisos').textContent()), 'sin localStorage no se avisa');
+    const err = await formNombre(page, '#j-nuevo', 'Prueba');
+    comprobar(!err && await activoSel(page) === 'Prueba', 'sin localStorage no se pueden crear juegos');
+    } catch (e) { fallo(donde, 'la prueba se interrumpió: ' + String(e.message).split('\n')[0]); }
+    page.errores.forEach(x => fallo(donde, x));
+    await page.context().close();
+  }
 }
 
 /* ---------- 6. paridad con el prototipo ---------- */

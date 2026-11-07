@@ -81,6 +81,21 @@ h2{font-size:24px; line-height:1.15; font-weight:700; letter-spacing:-.01em; mar
 .hint{font-size:12.5px; color:var(--ink2); margin:8px 0 0}
 .aviso{margin:0 0 8px}
 .btn:disabled{opacity:.6; cursor:progress}
+
+/* juegos de datos */
+.juegos{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:10px}
+.jl{font-size:13px; color:var(--ink2)}
+@media (max-width:520px){ .juegos .btns{width:100%; display:grid; grid-template-columns:repeat(4,minmax(0,1fr))} .juegos .btn{padding:6px 2px; font-size:12.5px} }
+.jsel{flex:1 1 160px; min-width:0; max-width:100%; border:1px solid var(--ring); background:var(--surface); color:var(--ink); border-radius:8px; padding:6px 8px; font:inherit; font-size:14px}
+.jform{margin:0 0 10px; padding:10px 12px; border-radius:8px; background:var(--plane)}
+.jform label{display:block; font-size:13px; color:var(--ink2); margin-bottom:6px}
+.jfila{display:flex; flex-wrap:wrap; gap:8px}
+.jfila input{flex:1 1 180px; min-width:0; border:1px solid var(--ring); background:var(--surface); color:var(--ink); border-radius:8px; padding:6px 10px; font:inherit; font-size:14px}
+.jfila input:focus,.jsel:focus{outline:2px solid var(--accent); outline-offset:1px}
+.jerror{margin:6px 0 0; font-size:13px; color:var(--s8)}
+.avisos{border:1px solid var(--s4); background:var(--surface); border-radius:10px; padding:10px 14px; margin:0 0 16px; display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; justify-content:space-between}
+.avisos[hidden]{display:none}
+.avisos ul{margin:0; padding-left:18px; flex:1 1 280px; min-width:0; font-size:13.5px; overflow-wrap:anywhere}
 .dt{max-height:320px; overflow:auto; border:1px solid var(--grid); border-radius:8px}
 table{border-collapse:collapse; width:100%; font-size:14px}
 th{position:sticky; top:0; background:var(--surface); z-index:1; text-align:left; border-bottom:1px solid var(--grid); font-weight:600; color:var(--ink2); padding:0}
@@ -127,4 +142,4 @@ th:not(.xc){padding:0}
 .thumb .bt .bb{top:4px; bottom:4px}
 .thumb .sp .rw{grid-template-columns:1fr; padding:4px 0} .thumb .sp .sn,.thumb .sp .sv,.thumb .sp .sc{display:none} .thumb .sp .sg{height:20px}
 .thumb .st{font-size:9px} .thumb .st .ln{line-height:1.25} .thumb .st .key,.thumb .st .sc2{display:none}
-@media (max-width:900px){ .dt input{font-size:16px} .yr .y{font-size:34px} h2{font-size:21px} }
+@media (max-width:900px){ .jsel,.jfila input{font-size:16px} .dt input{font-size:16px} .yr .y{font-size:34px} h2{font-size:21px} }

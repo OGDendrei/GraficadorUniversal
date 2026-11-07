@@ -14,8 +14,9 @@ export function nombreArchivo(nombre) {
 }
 
 /* def: módulo del gráfico; T: colores del tema actual; dibujar(el): pinta el gráfico en el;
-   ancho/alto: tamaño de la lámina en pantalla. Devuelve { blob, nombre }. */
-export async function generarPNG({ def, T, dibujar, ancho, alto }) {
+   ancho/alto: tamaño de la lámina en pantalla; juego: nombre del juego de datos (va bajo el título).
+   Devuelve { blob, nombre }. */
+export async function generarPNG({ def, T, dibujar, ancho, alto, juego }) {
   const lienzo = document.createElement('div');
   lienzo.className = 'canvas';
   lienzo.setAttribute('aria-hidden', 'true');
@@ -27,7 +28,7 @@ export async function generarPNG({ def, T, dibujar, ancho, alto }) {
     /* Los gráficos en HTML pueden ser más altos que la lámina: se exporta entero. */
     const alto2 = Math.max(alto, lienzo.scrollHeight);
     if (alto2 > alto) { lienzo.style.height = alto2 + 'px'; await frame(); }
-    const canvas = await componer(lienzo, def, T, ancho, alto2);
+    const canvas = await componer(lienzo, def, T, ancho, alto2, juego);
     const blob = await new Promise((ok, mal) => canvas.toBlob(b => b ? ok(b) : mal(new Error('el navegador no pudo crear el PNG (toBlob vacío)')), 'image/png'));
     return { blob, nombre: nombreArchivo(def.nombre) };
   } finally {
@@ -48,12 +49,13 @@ export function bajar({ blob, nombre }) {
 
 const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-async function componer(lienzo, def, T, ancho, alto) {
+async function componer(lienzo, def, T, ancho, alto, juego) {
   const W = ancho + 2 * MARGEN;
   const medir = document.createElement('canvas').getContext('2d');
   const titulo = partir(medir, def.nombre, '700 22px ' + FONT, ancho);
   const uso = def.uso ? partir(medir, def.uso, '400 14px ' + FONT, ancho) : [];
-  const cabecera = titulo.length * 28 + uso.length * 20 + 16;
+  const datos = juego ? partir(medir, 'Datos: «' + juego + '»', '600 14px ' + FONT, ancho) : [];
+  const cabecera = titulo.length * 28 + datos.length * 20 + uso.length * 20 + 16;
   const H = MARGEN + cabecera + alto + MARGEN;
   /* Al menos 2× (o la densidad de la pantalla) y unos 1200 px de ancho; sin pasar de 16 Mpx (límite de iPhone). */
   let escala = Math.min(4, Math.max(2, window.devicePixelRatio || 1, 1200 / W));
@@ -69,7 +71,9 @@ async function componer(lienzo, def, T, ancho, alto) {
   let y = MARGEN;
   ctx.font = '700 22px ' + FONT; ctx.fillStyle = T.ink;
   titulo.forEach(l => { ctx.fillText(l, MARGEN, y); y += 28; });
-  ctx.font = '400 14px ' + FONT; ctx.fillStyle = T.ink2;
+  ctx.font = '600 14px ' + FONT; ctx.fillStyle = T.ink2;
+  datos.forEach(l => { ctx.fillText(l, MARGEN, y); y += 20; });
+  ctx.font = '400 14px ' + FONT;
   uso.forEach(l => { ctx.fillText(l, MARGEN, y); y += 20; });
 
   await pintarDOM(ctx, lienzo, MARGEN, MARGEN + cabecera, escala);
