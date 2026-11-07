@@ -525,7 +525,66 @@ for (const cfg of [CONFIGS[2], CONFIGS[1]]) {
   }
 }
 
+/* ---------- 5d. coordenadas paralelas: ninguna línea se sale del área ----------
+   Cada eje debe abarcar los valores de todas las filas (el prototipo solo usaba la primera). */
+{
+  const cab = ['Coche', 'Potencia (CV)', 'Precio (k€)', 'Peso (kg)', 'Consumo (l/100)'];
+  const casos = {
+    'ejemplo': null,
+    'una fila': [['Urbano', '70', '14', '1050', '5,2']],
+    'columna con valores iguales': [['A', '100', '20', '1200', '5'], ['B', '150', '20', '1300', '6'], ['C', '220', '20', '1100', '7']],
+    'todo igual': [['A', '5', '5', '5', '5'], ['B', '5', '5', '5', '5']],
+    'negativos': [['A', '-70', '14', '-1050', '-5,2'], ['B', '-220', '-48', '1350', '8,8'], ['C', '0', '-3', '-20', '-0,5']],
+    'celdas vacías': [['A', '', '14', '1050', '5'], ['B', '220', '', '1650', ''], ['C', '95', '22', '', '7,4']],
+    'decimales grandes': [['A', '0,001', '123456', '9,99', '1e3'], ['B', '0,003', '987654', '10,01', '2e3']]
+  };
+  for (const cfg of [CONFIGS[2], CONFIGS[1]]) {
+    const page = await nuevaPagina(cfg);
+    await page.goto(BASE + '/index.html'); await esperarArranque(page);
+    for (const [nombre, filas] of Object.entries(casos)) {
+      const donde = 'paralelas ' + cfg.nombre + ' / ' + nombre;
+      await page.evaluate(({ filas, cab }) => {
+        localStorage.clear();
+        if (filas) localStorage.setItem('gu2:parallel', JSON.stringify({ v: 2, activo: 'P', juegos: [{ nombre: 'P', head: cab, rows: filas }] }));
+      }, { filas, cab });
+      await page.reload(); await esperarArranque(page);
+      await page.click('#tabs [data-g="raros"]'); await page.click('#tiles [data-id="parallel"]'); await dosFrames(page);
+      const r = await page.evaluate(() => ['canvas', 'th-parallel'].map(id => {
+        const inst = echarts.getInstanceByDom(document.getElementById(id));
+        if (!inst) return { id, error: 'no hay gráfico (' + document.getElementById(id).textContent + ')' };
+        const m = inst.getModel(), cs = m.getComponent('parallel').coordinateSystem, rect = cs.getRect();
+        const fuera = [];
+        m.eachSeriesByType('parallel', serie => {
+          const d = serie.getData();
+          cs.dimensions.forEach((dim, i) => {
+            const ext = m.getComponent('parallelAxis', i).axis.scale.getExtent();
+            for (let k = 0; k < d.count(); k++) {
+              const v = d.get(dim, k), pt = cs.dataToPoint(v, dim);
+              const dentro = v >= ext[0] - 1e-9 && v <= ext[1] + 1e-9 && pt[1] >= rect.y - 0.5 && pt[1] <= rect.y + rect.height + 0.5;
+              if (!dentro) fuera.push(serie.name + ' en el eje ' + (i + 1) + ': ' + v + ' (eje ' + ext.join('–') + ')');
+            }
+          });
+        });
+        return { id, fuera, ejes: cs.dimensions.map((_, i) => m.getComponent('parallelAxis', i).axis.scale.getExtent()) };
+      }));
+      for (const x of r) {
+        const que = x.id === 'canvas' ? 'lámina' : 'miniatura';
+        if (x.error) fallo(donde, que + ': ' + x.error);
+        else if (x.fuera.length) fallo(donde, que + ': líneas fuera del área → ' + x.fuera.slice(0, 4).join('; '));
+        else if (x.ejes.some(e => !(e[1] > e[0]))) fallo(donde, que + ': algún eje no tiene recorrido ' + JSON.stringify(x.ejes));
+      }
+      if (CAPTURAS) await page.locator('#canvas').screenshot({ path: path.join(DIR_CAPTURAS, 'paralelas_' + cfg.nombre + '_' + nombre.replace(/\s+/g, '-') + '.png') });
+    }
+    page.errores.forEach(x => fallo('paralelas ' + cfg.nombre, x));
+    await page.context().close();
+  }
+}
+
 /* ---------- 6. paridad con el prototipo ---------- */
+/* Diferencias hechas a propósito respecto al prototipo (arreglos de fallos suyos): no se comparan esas partes. */
+const DIFERENCIAS_VOLUNTARIAS = {
+  parallel: { partes: ['lienzo', 'mini'], motivo: 'coordenadas paralelas: los ejes se escalan con todas las filas, no solo con la primera' }
+};
 const GRUPO_PROTO = { populares: 'pop', vistosos: 'vis', raros: 'rar' };
 const paridad = [];
 for (const cfg of [CONFIGS[2], CONFIGS[3], CONFIGS[0]]) {
@@ -546,7 +605,7 @@ for (const cfg of [CONFIGS[2], CONFIGS[3], CONFIGS[0]]) {
     await abrir(app, c); await abrir(proto, c, GRUPO_PROTO);
     await quieto(app); await quieto(proto);
     const a = await foto(app), b = await foto(proto);
-    const distintos = Object.keys(a).filter(k => a[k] !== b[k]);
+    const distintos = Object.keys(a).filter(k => a[k] !== b[k] && !(DIFERENCIAS_VOLUNTARIAS[c.id]?.partes.includes(k)));
     if (distintos.length) {
       paridad.push(cfg.nombre + ' / ' + c.id + ': difiere ' + distintos.join(', '));
       fallo('paridad ' + cfg.nombre + ' / ' + c.id, 'difiere en ' + distintos.join(', '));
@@ -575,6 +634,7 @@ for (const tipo of Object.keys(resumen)) {
 }
 console.log('\nDescargar PNG: ' + pngs.ok + ' imágenes comprobadas' + (pngs.mal ? ', ' + pngs.mal + ' problemas' : ', todas bien') + ' (30 gráficos × 4 configuraciones)');
 console.log('\nParidad con el prototipo: ' + (paridad.length ? paridad.length + ' diferencias' : 'idéntico en los 30 gráficos (escritorio claro y oscuro, y móvil claro)'));
+Object.values(DIFERENCIAS_VOLUNTARIAS).forEach(d => console.log('  salvo a propósito: ' + d.motivo));
 if (fallos.length) {
   console.log('\nFALLOS (' + fallos.length + '):');
   fallos.forEach(f => console.log('  - ' + f));
